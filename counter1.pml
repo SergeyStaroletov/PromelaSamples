@@ -1,3 +1,9 @@
+/*
+@brief Non-deterministic counter sample 
+@author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
+@license GNU GPL
+*/
+
     int var = 2;
     int count = 0;
     ltl formula {[] (var >= 0)}

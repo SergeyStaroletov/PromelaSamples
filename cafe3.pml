@@ -1,3 +1,9 @@
+/*
+@brief Cafe sample for simulating loses in channels
+@author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
+@license GNU GPL
+*/
+
 /* channels - from the scheme*/
 chan gc_to_man = [2] of {short};
 chan man_to_gc = [2] of {short};

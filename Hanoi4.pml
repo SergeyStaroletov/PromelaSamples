@@ -1,3 +1,9 @@
+/*
+@brief Hanoi sample for using counterexample-driven approach to solve puzzles
+@author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
+@license GNU GPL
+*/
+
 #define N 5
 byte rod1 [N];
 byte rod2 [N];
@@ -5,7 +11,7 @@ byte rod3 [N];
 byte count1, count2, count3;
 byte moves;
 
-ltl count_check  { [] (count3!=5) }
+ltl count_check  { [] (count3 != 5) }
 
 active proctype Step(){ 
 

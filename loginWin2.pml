@@ -1,3 +1,10 @@
+
+/*
+@brief GUI modeling sample in Promela
+@author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
+@license GNU GPL
+*/
+
 int secrets = 0;
 int success = 0;
 int fails = 0;

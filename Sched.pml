@@ -10,7 +10,7 @@
 #define PARTITION1 0
 #define PARTITION2 1
 
-
+//internal data declaration
 
 typedef Context {
     int IP;
@@ -23,21 +23,15 @@ int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
 Context stack[MAXPROC] = {0,0};
-int sem1 = 0;
+int sid = 0;
 
 chan Interrupt=[0] of {short};
 
 Context stackInterrupt[MAXSTACK];
-int stackInterruptTop=-1;
+int stackInterruptTop = -1;
 
 
-inline p(sem) {
-    do_syscall(0, sem)
-}
 
-inline v(sem) {
-    do_syscall(1, sem)
-}
 
 inline do_syscall(N, param) {
     //prepare 
@@ -45,6 +39,32 @@ inline do_syscall(N, param) {
     Interrupt ! 1;
 }
 
+//user library
+//inline p(sem) {
+//    do_syscall(0, sem)
+//}
+
+//inline v(sem) {
+//    do_syscall(1, sem)
+//}
+
+
+inline pok_sem_signal(sid, ret) {
+ printf("pok_sem_signal\n"); 
+ ret = 0;
+}
+
+
+inline pok_sem_wait(sid, ret) {
+ printf("pok_sem_wait\n"); 
+ ret = 0;
+}
+
+inline pok_delay(time) {
+ printf("pok_delay\n");
+}
+
+//scheduler model
 
 active proctype sched() {
     do
@@ -61,20 +81,24 @@ active proctype sched() {
 }
 
 
+//users tread logic
 
- proctype thread1() {
+proctype threadP1T1(short myPartId; short myThreadId) {
 do
  :: (currentContext.IP != TH1FIN) -> {
      atomic {
-     if ::(currentPartition == 0 && currentThread == 0 && currentContext.IP == 0) -> 
-     { printf("th1: execute line 1\n"); p(0); currentContext.IP = currentContext.IP + 1;}
+     if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
+     { printf("P1T1: I will signal semaphores\n"); currentContext.IP++;}
         :: else -> 
-            if ::(currentPartition == 0 && currentThread == 0 && currentContext.IP == 1) -> 
-            { printf("th1: execute line 2\n"); currentContext.IP = currentContext.IP + 1;}
-            ::else -> if ::(currentPartition == 0 && currentThread == 0 && currentContext.IP == 2) -> 
-                { printf("th1: execute line 3\n"); currentContext.IP = currentContext.IP + 1;}
-                ::else -> skip;
-                fi;
+            if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
+            { pok_sem_signal(sid, currentContext.r0); currentContext.IP++;}
+            ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
+                { printf("P1T1: pok_sem_signal ret %d\n", currentContext.r0); currentContext.IP++;}
+                ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
+                    { pok_delay(2000); currentContext.IP = 0;}
+                    ::else -> skip;
+                    fi
+                fi
             fi
      fi 
      }
@@ -83,16 +107,31 @@ do
 od
 }
 
- proctype thread2() {
+
+proctype threadP1T2(short myPartId; short myThreadId) {
 do
- :: (currentContext.IP != 2) -> {
+ :: (currentContext.IP != TH1FIN) -> {
      atomic {
-     if ::(currentThread == 1 && currentContext.IP == 0) -> { printf("th2: execute line 1\n"); ; currentContext.IP = currentContext.IP + 1;}
+     if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
+     { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++;}
         :: else -> 
-            if ::(currentThread == 1 && currentContext.IP == 1) -> { v(0);  currentContext.IP = currentContext.IP + 1;}
-            ::else -> skip;
+            if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
+            { pok_sem_wait(sid, currentContext.r0); currentContext.IP++;}
+            ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
+                { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
+                ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
+                    { pok_sem_wait(sid, currentContext.r0); currentContext.IP++;}
+                    ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 4) -> 
+                        { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
+                        ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 5) -> 
+                                { pok_delay(2000); currentContext.IP = 0;}
+                                 ::else -> skip;
+                            fi
+                        fi
+                    fi
+                fi
             fi
-     fi 
+        fi 
      }
  }
  :: else -> {printf("th2 done! \n"); break; } 
@@ -100,9 +139,10 @@ od
 }
 
 
+//entry point
+
 active proctype main() {
     //setup the environment
-
     currentContext.IP = 0;
     stack[0].IP = 0;
     stack[1].IP = 0;
@@ -110,11 +150,13 @@ active proctype main() {
     currentPartition = PARTITION1;
 
     //run all the threads
-    run thread1();
-    run thread2();
+    run threadP1T1(PARTITION1, 0);
+    run threadP1T2(PARTITION1, 1);
 }
 
 
+
+//interrupts processing model
 active proctype interrupt_handler() {
 short buf;
 do 
@@ -125,7 +167,7 @@ do
 od
 }
 
-
+//kernel api
 inline sem_p(sem) {
     (sem != 0) -> sem = 0;
 }
@@ -136,7 +178,6 @@ inline sem_v(sem) {
 
 
 proctype one_handler() {
-
 int myStackTop; 
 int id;
  atomic {
@@ -148,8 +189,8 @@ int id;
  }
 
     if 
-        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); sem_p(sem1); currentContext.IP++ }}
-        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); sem_v(sem1); currentContext.IP++ }}
+        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); sem_p(sid); currentContext.IP++ }}
+        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); sem_v(sid); currentContext.IP++ }}
         :: else -> skip;
     fi
 
@@ -158,9 +199,10 @@ int id;
         currentContext.IP = stackInterrupt[stackInterruptTop].IP; //restore ip
         stackInterruptTop-- ;
     }
-
-
 }
+
+
+
 
 
 ltl check_me { [] <> (stack[0].IP == 2 && stack[1].IP == 2) }

@@ -7,6 +7,9 @@
 #define MAXPROC 2
 #define MAXSTACK 10
 #define TH1FIN 3
+#define PARTITION1 0
+#define PARTITION2 1
+
 
 
 typedef Context {
@@ -59,7 +62,7 @@ active proctype sched() {
 
 
 
-active proctype thread1() {
+ proctype thread1() {
 do
  :: (currentContext.IP != TH1FIN) -> {
      atomic {
@@ -80,7 +83,7 @@ do
 od
 }
 
-active proctype th2() {
+ proctype thread2() {
 do
  :: (currentContext.IP != 2) -> {
      atomic {
@@ -94,6 +97,21 @@ do
  }
  :: else -> {printf("th2 done! \n"); break; } 
 od
+}
+
+
+active proctype main() {
+    //setup the environment
+
+    currentContext.IP = 0;
+    stack[0].IP = 0;
+    stack[1].IP = 0;
+    currentThread = 0;
+    currentPartition = PARTITION1;
+
+    //run all the threads
+    run thread1();
+    run thread2();
 }
 
 

@@ -1,10 +1,12 @@
 
 //-----------------------------------------------------------------
-
+//First OS in Promela:)
+//(c) Sergey Staroletov
+//-----------------------------------------------------------------
 
 #define MAXPROC 2
 #define MAXSTACK 10
-#define TH1FIN 2
+#define TH1FIN 3
 
 
 typedef Context {
@@ -18,9 +20,7 @@ int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
 Context stack[MAXPROC] = {0,0};
-
-
-int IP = 0;
+int sem1 = 0;
 
 chan Interrupt=[0] of {short};
 
@@ -47,19 +47,17 @@ active proctype sched() {
     do
     :: true -> {
         atomic {
-            stack[currentThread].IP = IP;
+            stack[currentThread].IP = currentContext.IP;
             if ::(currentThread == 0) -> currentThread = 1;
                :: else -> currentThread = 0;
             fi
-            IP = stack[currentThread].IP;
+            currentContext.IP = stack[currentThread].IP;
         }
      }
     od
 }
 
-//inline do_syscall() {
-//
-//}
+
 
 active proctype thread1() {
 do
@@ -69,8 +67,11 @@ do
      { printf("th1: execute line 1\n"); p(0); currentContext.IP = currentContext.IP + 1;}
         :: else -> 
             if ::(currentPartition == 0 && currentThread == 0 && currentContext.IP == 1) -> 
-            { printf("th1: execute line 2\n"); v(0); currentContext.IP = currentContext.IP + 1;}
-            ::else -> skip;
+            { printf("th1: execute line 2\n"); currentContext.IP = currentContext.IP + 1;}
+            ::else -> if ::(currentPartition == 0 && currentThread == 0 && currentContext.IP == 2) -> 
+                { printf("th1: execute line 3\n"); currentContext.IP = currentContext.IP + 1;}
+                ::else -> skip;
+                fi;
             fi
      fi 
      }
@@ -83,9 +84,9 @@ active proctype th2() {
 do
  :: (currentContext.IP != 2) -> {
      atomic {
-     if ::(currentThread == 1 && currentContext.IP == 0) -> { printf("th2: execute line 1\n");  currentContext.IP = currentContext.IP + 1;}
+     if ::(currentThread == 1 && currentContext.IP == 0) -> { printf("th2: execute line 1\n"); ; currentContext.IP = currentContext.IP + 1;}
         :: else -> 
-            if ::(currentThread == 1 && currentContext.IP == 1) -> { printf("th2: execute line 2\n");  currentContext.IP = currentContext.IP + 1;}
+            if ::(currentThread == 1 && currentContext.IP == 1) -> { v(0);  currentContext.IP = currentContext.IP + 1;}
             ::else -> skip;
             fi
      fi 
@@ -107,21 +108,30 @@ od
 }
 
 
+inline sem_p(sem) {
+    (sem != 0) -> sem = 0;
+}
+
+inline sem_v(sem) {
+    sem = 1;
+}
+
+
 proctype one_handler() {
 
 int myStackTop; 
+int id;
  atomic {
         stackInterruptTop = stackInterruptTop + 1;
         myStackTop = stackInterruptTop;
         stackInterrupt[myStackTop].IP = currentContext.IP; //save ip
         stackInterrupt[myStackTop].r0 = currentContext.r0;
-         }
-
-    int id = stackInterrupt[myStackTop].r0; 
+        id = stackInterrupt[myStackTop].r0; 
+ }
 
     if 
-        ::(id == 0) -> { printf("interrupt with function 0\n"); currentContext.IP++ }
-        ::(id == 1) -> { printf("interrupt with function 1\n"); currentContext.IP++ }
+        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); sem_p(sem1); currentContext.IP++ }}
+        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); sem_v(sem1); currentContext.IP++ }}
         :: else -> skip;
     fi
 

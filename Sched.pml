@@ -10,6 +10,7 @@
 #define TH1FIN 3
 #define PARTITION1 0
 #define PARTITION2 1
+#define MAXTIMESIM 10000
 
 //internal data declaration
 
@@ -23,20 +24,23 @@ typedef Context {
 int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
-Context stack[MAXPROC * MAXPART] = {0,0};
+Context stack[MAXPROC * MAXPART] = {0,0,0,0};
 int sid = 0;
+int realTime = 0; //time variable
+bit osLive = 1;
 
 chan Interrupt=[0] of {short};
 
 Context stackInterrupt[MAXSTACK];
 int stackInterruptTop = -1;
 
-
-
+//syscalls
+mtype = {sem_p, sem_v, delay, print}
 
 inline do_syscall(N, param) {
     //prepare 
     currentContext.r0 = N;
+
     Interrupt ! 1;
 }
 
@@ -68,7 +72,7 @@ inline pok_delay(time) {
 //scheduler model
 active proctype sched() {
     do
-    :: true -> {
+    :: realTime < MAXTIMESIM -> {
         atomic {
             stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
             //select partition
@@ -80,8 +84,10 @@ active proctype sched() {
                :: else -> currentThread = 0;
             fi
             currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
+            realTime++;
         }
      }
+    :: else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}
     od
 }
 
@@ -90,7 +96,7 @@ active proctype sched() {
 //model: see examples/semaphores on pok repo
 proctype threadP1T1(short myPartId; short myThreadId) {
 do
- :: true -> {
+ :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { printf("P1T1: I will signal semaphores\n"); currentContext.IP++;}
@@ -108,13 +114,14 @@ do
         fi 
      }
  }
+ :: else -> break;
 od
 }
 
 
 proctype threadP1T2(short myPartId; short myThreadId) {
 do
- :: true -> {
+ :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++;}
@@ -138,12 +145,13 @@ do
         fi 
      }
  }
-od
+  :: else -> break;
+  od
 }
 
 proctype threadP2T1(short myPartId; short myThreadId) {
 do
- :: true -> {
+ :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { printf("P2T1: begin of task\n"); currentContext.IP++;}
@@ -155,6 +163,7 @@ do
         fi 
      }
  }
+:: else -> break;
 od
 }
 
@@ -165,6 +174,10 @@ active proctype main() {
     currentContext.IP = 0;
     stack[0].IP = 0;
     stack[1].IP = 0;
+    stack[2].IP = 0;
+    stack[3].IP = 0;
+
+
     currentThread = 0;
     currentPartition = PARTITION1;
 
@@ -210,8 +223,8 @@ int id;
  }
 
     if 
-        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); sem_p(sid); currentContext.IP++ }}
-        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); sem_v(sid); currentContext.IP++ }}
+        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); currentContext.IP++ }}
+        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); currentContext.IP++ }}
         :: else -> skip;
     fi
 

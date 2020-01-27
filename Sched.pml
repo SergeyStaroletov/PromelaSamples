@@ -5,6 +5,7 @@
 //-----------------------------------------------------------------
 
 #define MAXPROC 2
+#define MAXPART 2
 #define MAXSTACK 10
 #define TH1FIN 3
 #define PARTITION1 0
@@ -22,7 +23,7 @@ typedef Context {
 int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
-Context stack[MAXPROC] = {0,0};
+Context stack[MAXPROC * MAXPART] = {0,0};
 int sid = 0;
 
 chan Interrupt=[0] of {short};
@@ -50,42 +51,46 @@ inline do_syscall(N, param) {
 
 
 inline pok_sem_signal(sid, ret) {
- printf("pok_sem_signal\n"); 
+ printf("pok_sem_signal stub\n"); 
  ret = 0;
 }
 
 
 inline pok_sem_wait(sid, ret) {
- printf("pok_sem_wait\n"); 
+ printf("pok_sem_wait stub\n"); 
  ret = 0;
 }
 
 inline pok_delay(time) {
- printf("pok_delay\n");
+ printf("pok_delay stub\n");
 }
 
 //scheduler model
-
 active proctype sched() {
     do
     :: true -> {
         atomic {
-            stack[currentThread].IP = currentContext.IP;
+            stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
+            //select partition
+            if
+                ::true -> currentPartition = 0;
+                ::true -> currentPartition = 1;
+            fi
             if ::(currentThread == 0) -> currentThread = 1;
                :: else -> currentThread = 0;
             fi
-            currentContext.IP = stack[currentThread].IP;
+            currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
         }
      }
     od
 }
 
 
-//users tread logic
-
+//user's tread logic
+//model: see examples/semaphores on pok repo
 proctype threadP1T1(short myPartId; short myThreadId) {
 do
- :: (currentContext.IP != TH1FIN) -> {
+ :: true -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { printf("P1T1: I will signal semaphores\n"); currentContext.IP++;}
@@ -95,22 +100,21 @@ do
             ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
                 { printf("P1T1: pok_sem_signal ret %d\n", currentContext.r0); currentContext.IP++;}
                 ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
-                    { pok_delay(2000); currentContext.IP = 0;}
+                    { pok_delay(2000); currentContext.IP = 0; /* inf loop */}
                     ::else -> skip;
                     fi
                 fi
             fi
-     fi 
+        fi 
      }
  }
- :: else -> {printf("th1 done! \n"); break; } 
 od
 }
 
 
 proctype threadP1T2(short myPartId; short myThreadId) {
 do
- :: (currentContext.IP != TH1FIN) -> {
+ :: true -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++;}
@@ -134,10 +138,25 @@ do
         fi 
      }
  }
- :: else -> {printf("th2 done! \n"); break; } 
 od
 }
 
+proctype threadP2T1(short myPartId; short myThreadId) {
+do
+ :: true -> {
+     atomic {
+     if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
+     { printf("P2T1: begin of task\n"); currentContext.IP++;}
+        :: else -> 
+            if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
+            { pok_delay(5000); currentContext.IP = 0; }
+            ::else ->  skip;   
+            fi
+        fi 
+     }
+ }
+od
+}
 
 //entry point
 
@@ -152,6 +171,8 @@ active proctype main() {
     //run all the threads
     run threadP1T1(PARTITION1, 0);
     run threadP1T2(PARTITION1, 1);
+    run threadP2T1(PARTITION2, 0);
+    
 }
 
 

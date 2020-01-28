@@ -4,10 +4,9 @@
 //(c) Sergey Staroletov
 //-----------------------------------------------------------------
 
-#define MAXPROC 2
-#define MAXPART 2
+#define MAXTHREADS 2
+#define MAXPARTITIONS 2
 #define MAXSTACK 10
-#define TH1FIN 3
 #define PARTITION1 0
 #define PARTITION2 1
 #define MAXTIMESIM 10000
@@ -24,19 +23,19 @@ typedef Context {
 int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
-Context stack[MAXPROC * MAXPART] = {0,0,0,0};
+Context stack[MAXTHREADS * MAXPARTITIONS] = {0,0,0,0};
 int sid = 0;
 int realTime = 0; //time variable
 bit osLive = 1;
 
 
-short timeSpacePerPartition[MAXPART] = {100, 100};
-short timeSpacePerThread[MAXPART * MAXPROC] = {50, 50, 100, 0};
+short timeSpacePerPartition[MAXPARTITIONS] = {10, 10};
+short timeSpacePerThread[MAXPARTITIONS * MAXTHREADS] = {5, 5, 10, 0};
 short schedCurrentPartitionRunTime = 0;
 short schedCurrentThreadRunTime = 0;
 
 
-chan Interrupt=[0] of {short}; //for interrupt signals
+chan Interrupt = [0] of {short}; //for interrupt signals
 
 Context stackInterrupt[MAXSTACK];
 int stackInterruptTop = -1;
@@ -87,18 +86,19 @@ proctype schedDeterministicInstance() {
     :: realTime < MAXTIMESIM -> {
         atomic {
             //get current instruction pointer
-            stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
+            stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
             
+            //increase time on tick
             schedCurrentPartitionRunTime++;
             schedCurrentThreadRunTime++;
 
-            //calulate time and select a next partition
+            //calulate run time and select a next partition
             if  
                 :: (schedCurrentPartitionRunTime > timeSpacePerPartition[currentPartition]) ->
                 {
                     currentPartition++;
                     if 
-                        :: (currentPartition == MAXPART) -> currentPartition = 0;
+                        :: (currentPartition == MAXPARTITIONS) -> currentPartition = 0;
                         :: else -> skip;
                     fi
                     schedCurrentPartitionRunTime = 0;
@@ -107,14 +107,15 @@ proctype schedDeterministicInstance() {
                 }
                 :: else -> skip;
             fi
-
+            //calulate run time and select a next thread
             if
-                :: (schedCurrentThreadRunTime > timeSpacePerThread[currentPartition * MAXPART + currentThread]) -> {
+                :: (schedCurrentThreadRunTime > timeSpacePerThread[currentPartition * MAXPARTITIONS + currentThread]) -> {
                     currentThread++; 
                     if
-                        :: (currentThread == MAXPROC) -> {
+                        :: (currentThread == MAXTHREADS) -> {
                             currentThread = 0;
                         }
+                        :: else -> skip;
                     fi
                     schedCurrentThreadRunTime = 0;
                 }
@@ -122,7 +123,7 @@ proctype schedDeterministicInstance() {
             fi
 
              //switch current instruction pointer
-            currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
+            currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
             realTime++;
         }
      }
@@ -135,7 +136,7 @@ proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
         atomic {
-            stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
+            stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
             //select partition
             //non-deterministic scheduler - rewrite?
             if
@@ -145,7 +146,7 @@ proctype schedNonDeterministicInstance() {
             if ::(currentThread == 0) -> currentThread = 1; //stub
                :: else -> currentThread = 0;
             fi
-            currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
+            currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
             realTime++;
         }
      }
@@ -244,6 +245,7 @@ active proctype main() {
     currentPartition = PARTITION1;
 
     runSched();
+
 
     //run all the threads
     run threadP1T1(PARTITION1, 0);

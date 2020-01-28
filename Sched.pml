@@ -29,7 +29,14 @@ int sid = 0;
 int realTime = 0; //time variable
 bit osLive = 1;
 
-chan Interrupt=[0] of {short};
+
+short timeSpacePerPartition[MAXPART] = {100, 100};
+short timeSpacePerThread[MAXPART * MAXPROC] = {50, 50, 100, 0};
+short schedCurrentPartitionRunTime = 0;
+short schedCurrentThreadRunTime = 0;
+
+
+chan Interrupt=[0] of {short}; //for interrupt signals
 
 Context stackInterrupt[MAXSTACK];
 int stackInterruptTop = -1;
@@ -40,7 +47,6 @@ mtype = {sem_p, sem_v, delay, print}
 inline do_syscall(N, param) {
     //prepare 
     currentContext.r0 = N;
-
     Interrupt ! 1;
 }
 
@@ -70,17 +76,73 @@ inline pok_delay(time) {
 }
 
 //scheduler model
-active proctype sched() {
+inline runSched() {
+    //run schedNonDeterministicInstance();
+    run schedDeterministicInstance();
+}
+
+
+proctype schedDeterministicInstance() {
+    do
+    :: realTime < MAXTIMESIM -> {
+        atomic {
+            //get current instruction pointer
+            stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
+            
+            schedCurrentPartitionRunTime++;
+            schedCurrentThreadRunTime++;
+
+            //calulate time and select a next partition
+            if  
+                :: (schedCurrentPartitionRunTime > timeSpacePerPartition[currentPartition]) ->
+                {
+                    currentPartition++;
+                    if 
+                        :: (currentPartition == MAXPART) -> currentPartition = 0;
+                        :: else -> skip;
+                    fi
+                    schedCurrentPartitionRunTime = 0;
+                    schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
+                    currentThread = 0;
+                }
+                :: else -> skip;
+            fi
+
+            if
+                :: (schedCurrentThreadRunTime > timeSpacePerThread[currentPartition * MAXPART + currentThread]) -> {
+                    currentThread++; 
+                    if
+                        :: (currentThread == MAXPROC) -> {
+                            currentThread = 0;
+                        }
+                    fi
+                    schedCurrentThreadRunTime = 0;
+                }
+                :: else -> skip; 
+            fi
+
+             //switch current instruction pointer
+            currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
+            realTime++;
+        }
+     }
+    :: else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}
+    od
+}
+
+
+proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
         atomic {
             stack[currentPartition * MAXPART + currentThread].IP = currentContext.IP;
             //select partition
+            //non-deterministic scheduler - rewrite?
             if
                 ::true -> currentPartition = 0;
                 ::true -> currentPartition = 1;
             fi
-            if ::(currentThread == 0) -> currentThread = 1;
+            if ::(currentThread == 0) -> currentThread = 1; //stub
                :: else -> currentThread = 0;
             fi
             currentContext.IP = stack[currentPartition * MAXPART + currentThread].IP;
@@ -180,6 +242,8 @@ active proctype main() {
 
     currentThread = 0;
     currentPartition = PARTITION1;
+
+    runSched();
 
     //run all the threads
     run threadP1T1(PARTITION1, 0);

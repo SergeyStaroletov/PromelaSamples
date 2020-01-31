@@ -111,7 +111,6 @@ inline schedDeterministicInstanceLogic() {
 
     //fix time for sleeping threads
     short partIter = 0;
-    bit needPeakAThread = 0;
     do
         ::(partIter < MAXPARTITIONS) -> {
             short threadIter = 0;
@@ -130,6 +129,7 @@ inline schedDeterministicInstanceLogic() {
         ::else -> break;
     od
 
+    bit needPeakAThread = 0;
     //check run time and select a next partition
     if  
         :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->

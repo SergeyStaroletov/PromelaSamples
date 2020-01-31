@@ -1,14 +1,17 @@
 
 //-----------------------------------------------------------------
 //First OS in Promela:)
+//moreover, it is a partitioned:)
 //(c) Sergey Staroletov
 //-----------------------------------------------------------------
 
 #define MAXTHREADS 2
 #define MAXPARTITIONS 2
 #define MAXSTACK 10
+#define MAXSEMAPHORES 1
 #define PARTITION1 0
 #define PARTITION2 1
+#define INTERRUPT MAXPARTITIONS
 #define MAXTIMESIM 10000
 
 //internal data declaration
@@ -20,59 +23,58 @@ typedef Context {
     int r1;
     int r2;
 }
+
+typedef Thread {
+    Context stack[MAXSTACK];
+    int timeSpacePerThread;
+    bit isLocked;
+    int wakeUpTime;
+    short id;
+    short partition;
+}
+
+typedef Partition {
+    short timeSpacePerPartition;
+    Thread threads[MAXTHREADS];
+}
+
+typedef Semaphore {
+    short maxCount;
+    short currentCount;
+    short theadsAwaiting[MAXTHREADS];
+    short threadAwaitingCount;
+}
+
 int currentThread = 0;
 int currentPartition = 0;
 Context currentContext;
-Context stack[MAXTHREADS * MAXPARTITIONS] = {0,0,0,0};
-int sid = 0;
+
+Semaphore semaphores[MAXSEMAPHORES];
+Partition partitions[MAXPARTITIONS];
+
+
 int realTime = 0; //time variable
-bit osLive = 1;
-
-
-short timeSpacePerPartition[MAXPARTITIONS] = {10, 10};
-short timeSpacePerThread[MAXPARTITIONS * MAXTHREADS] = {5, 5, 10, 0};
 short schedCurrentPartitionRunTime = 0;
 short schedCurrentThreadRunTime = 0;
 
+bit osLive = 1;
+bit interruptsDisable = 0;
 
-chan Interrupt = [0] of {short}; //for interrupt signals
+int sid = 0;
 
-Context stackInterrupt[MAXSTACK];
-int stackInterruptTop = -1;
+
+chan InterruptController = [0] of {short}; //for interrupt signals
+chan InterruptRet = [0] of {short}; //for interrupt returns
+
+
+//-------------------------------------------------------------------------------
+// Syscalls processing model
+//-------------------------------------------------------------------------------
 
 //syscalls
-mtype = {sem_p, sem_v, delay, print}
-
-inline do_syscall(N, param) {
-    //prepare 
-    currentContext.r0 = N;
-    Interrupt ! 1;
-}
-
-//user library
-//inline p(sem) {
-//    do_syscall(0, sem)
-//}
-
-//inline v(sem) {
-//    do_syscall(1, sem)
-//}
+mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_print}
 
 
-inline pok_sem_signal(sid, ret) {
- printf("pok_sem_signal stub\n"); 
- ret = 0;
-}
-
-
-inline pok_sem_wait(sid, ret) {
- printf("pok_sem_wait stub\n"); 
- ret = 0;
-}
-
-inline pok_delay(time) {
- printf("pok_delay stub\n");
-}
 
 //scheduler model
 inline runSched() {
@@ -81,53 +83,91 @@ inline runSched() {
 }
 
 
-proctype schedDeterministicInstance() {
+//scheduler logic - it was declared as inline to call it from sleep
+inline schedDeterministicInstanceLogic() {
+    //save current instruction pointer
+    currentContext.sp++;
+    partitions[currentPartition].threads[currentThread].stack[currentContext.sp].IP = currentContext.IP;
+        
+    //fix time for awaiting threads
+    short partIter = 0;
+    bit needPeakAThread = 0;
     do
-    :: realTime < MAXTIMESIM -> {
-        atomic {
-            //get current instruction pointer
-            stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
-            
-            //increase time on tick
-            schedCurrentPartitionRunTime++;
-            schedCurrentThreadRunTime++;
-
-            //calulate run time and select a next partition
-            if  
-                :: (schedCurrentPartitionRunTime > timeSpacePerPartition[currentPartition]) ->
-                {
-                    currentPartition++;
-                    if 
-                        :: (currentPartition == MAXPARTITIONS) -> currentPartition = 0;
-                        :: else -> skip;
+        ::(partIter < MAXPARTITIONS) -> {
+            short threadIter = 0;
+            do
+                ::(threadIter < MAXTHREADS) -> {
+                    if
+                        ::(partitions[partIter].threads[threadIter].wakeUpTime <= realTime) -> {
+                            partitions[partIter].threads[threadIter].wakeUpTime = 0; //that will stop its waiting
+                        }
+                        ::else -> skip; 
                     fi
-                    schedCurrentPartitionRunTime = 0;
-                    schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
+                }
+                ::else -> break;
+            od
+        }
+        ::else -> break;
+    od
+
+
+
+    //check run time and select a next partition
+    if  
+        :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->
+        {
+            currentPartition++;
+            if 
+                :: (currentPartition == MAXPARTITIONS) -> currentPartition = 0;
+                :: else -> skip;
+            fi
+            schedCurrentPartitionRunTime = 0;
+            schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
+            needPeakAThread = 1;
+            currentThread = -1;//?
+        }
+        :: else -> skip;
+    fi
+    //calulate run time and select a next thread
+    if
+        :: (needPeakAThread == 1) || (schedCurrentThreadRunTime > partitions[currentPartition].threads[currentThread].timeSpacePerThread) -> {
+            //find next non locked and sleeped thread  
+            currentThread++; 
+            if
+                :: (currentThread == MAXTHREADS) -> {
                     currentThread = 0;
                 }
                 :: else -> skip;
             fi
-            //calulate run time and select a next thread
-            if
-                :: (schedCurrentThreadRunTime > timeSpacePerThread[currentPartition * MAXPARTITIONS + currentThread]) -> {
-                    currentThread++; 
-                    if
-                        :: (currentThread == MAXTHREADS) -> {
-                            currentThread = 0;
-                        }
-                        :: else -> skip;
-                    fi
-                    schedCurrentThreadRunTime = 0;
-                }
-                :: else -> skip; 
-            fi
-
-             //switch current instruction pointer
-            currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
-            realTime++;
+            schedCurrentThreadRunTime = 0;
         }
+        :: else -> skip; 
+    fi
+
+        //switch current instruction pointer
+    currentContext.sp = partitions[currentPartition].threads[currentThread].stack[0].sp; //???????
+    currentContext.IP = partitions[currentPartition].threads[currentThread].stack[currentContext.sp].IP;
+    currentContext.sp--;
+}
+
+
+
+proctype schedDeterministicInstance() {
+    do
+    ::(realTime < MAXTIMESIM) -> {
+        realTime++;
+        //increase time on tick
+        schedCurrentPartitionRunTime++;
+        schedCurrentThreadRunTime++;
+        if 
+            ::(interruptsDisable == 0) ->
+            atomic {
+                schedDeterministicInstanceLogic();
+            }
+        ::else ->skip;
+        fi
      }
-    :: else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}
+    ::else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}
     od
 }
 
@@ -136,23 +176,150 @@ proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
         atomic {
-            stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
+            //stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
             //select partition
             //non-deterministic scheduler - rewrite?
             if
                 ::true -> currentPartition = 0;
                 ::true -> currentPartition = 1;
             fi
-            if ::(currentThread == 0) -> currentThread = 1; //stub
-               :: else -> currentThread = 0;
+            if 
+                ::(currentThread == 0) -> currentThread = 1; //stub
+                :: else -> currentThread = 0;
             fi
-            currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
+            //currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
             realTime++;
         }
      }
     :: else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}
     od
 }
+
+
+
+
+
+
+//universal syscall executor - emulates interrupt caller
+inline pok_do_syscall(N, param, ret) {
+    atomic {
+    //pass the params
+    currentContext.r0 = N;
+    currentContext.r1 = param;
+    }
+    //emit the interrupt
+    InterruptController ! 42;
+    //wait for iret
+    InterruptRet ? ret;
+}
+
+
+//user library
+inline pok_sem_signal(sid, ret) {
+    pok_do_syscall(syscall_sem_v, sid, ret);
+}
+
+inline pok_sem_wait(sid, ret) {
+    pok_do_syscall(syscall_sem_p, sid, ret);
+}
+
+inline pok_delay(time) {
+    pok_do_syscall(syscall_delay, sid, currentContext.r0);
+}
+
+//kernel library
+
+inline sem_signal(sid) {
+    semaphores[sid].currentCount++; //update the counter
+    if
+        ::(semaphores[sid].currentCount == 0) -> {
+            //we need to unlock an awaiting thread -> just remove it from list of awaiters
+            if
+                ::(semaphores[sid].threadAwaitingCount > 0) -> {
+                    //remove = decrement
+                    semaphores[sid].threadAwaitingCount--;
+                    //put islocked (not safe solution)
+                    short idd = semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount];
+                    //find the thread by dfs using its id
+                    short partIter = 0;
+                    do
+                        ::(partIter < MAXPARTITIONS) -> {
+                            short threadIter = 0;
+                            do
+                                ::(threadIter < MAXTHREADS) -> {
+                                    if
+                                        ::(partitions[partIter].threads[threadIter].id == idd) -> {
+                                            //unlock the thread
+                                            partitions[partIter].threads[threadIter].isLocked = 0;
+                                            break;
+                                        }
+                                        ::else -> skip; 
+                                    fi
+                                }
+                                ::else -> break;
+                            od
+                        }
+                        ::else -> break;
+                    od
+
+                }
+                ::else -> skip;
+            fi
+        }
+        ::else -> skip;    
+    fi
+}
+
+inline sem_wait(sid) {
+    semaphores[sid].currentCount--; //update the counter
+    if
+        ::(semaphores[sid].currentCount < 0) -> {
+            //we need to lock the current thread
+            partitions[currentPartition].threads[currentThread].isLocked = 1;
+            semaphores[sid].threadAwaitingCount++;
+            //save current thread calculated id into the semaphore waiting list
+            semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount] = currentPartition * MAXPARTITIONS + currentThread;
+        }
+        ::else -> skip; 
+    fi
+}
+
+
+
+inline sleep(sleepTime) {
+    partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
+    schedDeterministicInstanceLogic();
+}
+
+
+//interrupts processing model
+active proctype InterruptHandler() {
+short intNum;
+int ret = 0; //stub
+int id = currentContext.r0;
+int param = currentContext.r1;
+do 
+:: true ->  {
+    InterruptController ? intNum;
+    interruptsDisable = 1;
+    
+    if 
+        :: (intNum == 42) -> {
+            if
+                :: (id == syscall_sem_v) -> sem_signal(param);
+                :: (id == syscall_sem_p) -> sem_wait(param);
+                :: (id == syscall_delay) -> sleep(param);
+                :: else -> skip;
+            fi
+        }
+        :: else -> skip;
+    fi
+    interruptsDisable = 0;
+    InterruptRet ! ret;
+    }
+od
+}
+
 
 
 //user's tread logic
@@ -165,11 +332,11 @@ do
      { printf("P1T1: I will signal semaphores\n"); currentContext.IP++;}
         :: else -> 
             if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
-            { pok_sem_signal(sid, currentContext.r0); currentContext.IP++;}
+            { pok_sem_signal(sid, currentContext.r0); currentContext.IP++; }
             ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
-                { printf("P1T1: pok_sem_signal ret %d\n", currentContext.r0); currentContext.IP++;}
+                { printf("P1T1: pok_sem_signal ret %d\n", currentContext.r0); currentContext.IP++; }
                 ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
-                    { pok_delay(2000); currentContext.IP = 0; /* inf loop */}
+                    { pok_delay(2000); currentContext.IP = 0; /* inf loop */ }
                     ::else -> skip;
                     fi
                 fi
@@ -187,18 +354,18 @@ do
  :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
-     { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++;}
+     { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++; }
         :: else -> 
             if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
-            { pok_sem_wait(sid, currentContext.r0); currentContext.IP++;}
+            { pok_sem_wait(sid, currentContext.r0); currentContext.IP++; }
             ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
                 { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
                 ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
-                    { pok_sem_wait(sid, currentContext.r0); currentContext.IP++;}
+                    { pok_sem_wait(sid, currentContext.r0); currentContext.IP++; }
                     ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 4) -> 
                         { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
                         ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 5) -> 
-                                { pok_delay(2000); currentContext.IP = 0;}
+                                { pok_delay(2000); currentContext.IP = 0; }
                                  ::else -> skip;
                             fi
                         fi
@@ -230,22 +397,40 @@ do
 od
 }
 
-//entry point
 
+inline createThread(partitionId, threadId) {
+    partitions[partitionId].threads[threadId].id = partitionId * MAXPARTITIONS + threadId;
+    partitions[partitionId].threads[threadId].partition = partitionId;
+    partitions[partitionId].threads[threadId].stack[0].IP = 0;
+    partitions[partitionId].threads[threadId].wakeUpTime = 0;
+    partitions[partitionId].threads[threadId].isLocked = 0;
+}
+
+
+//main entry point
 active proctype main() {
     //setup the environment
-    currentContext.IP = 0;
-    stack[0].IP = 0;
-    stack[1].IP = 0;
-    stack[2].IP = 0;
-    stack[3].IP = 0;
+    // timeSpacePerPartition[MAXPARTITIONS] = {100, 100};
+    // timeSpacePerThread[MAXPARTITIONS * MAXTHREADS] = {50, 50, 100, 0};
+    partitions[0].timeSpacePerPartition = 100;
+    partitions[1].timeSpacePerPartition = 100;
+    createThread(0, 0);
+    partitions[0].threads[0].timeSpacePerThread = 50;
+    createThread(0, 1);
+    partitions[0].threads[1].timeSpacePerThread = 50;
+    createThread(1, 0);
+    partitions[1].threads[0].timeSpacePerThread = 100;
+    createThread(1, 1);
+    partitions[1].threads[1].timeSpacePerThread = 0;
+    partitions[1].threads[1].isLocked = 1;
 
-
+    semaphores[0].currentCount = 50;
+  
     currentThread = 0;
     currentPartition = PARTITION1;
 
+    //run scheduler instance
     runSched();
-
 
     //run all the threads
     run threadP1T1(PARTITION1, 0);
@@ -255,54 +440,4 @@ active proctype main() {
 }
 
 
-
-//interrupts processing model
-active proctype interrupt_handler() {
-short buf;
-do 
-:: true ->  {
-     Interrupt ? buf;
-    run one_handler();
-    }
-od
-}
-
-//kernel api
-inline sem_p(sem) {
-    (sem != 0) -> sem = 0;
-}
-
-inline sem_v(sem) {
-    sem = 1;
-}
-
-
-proctype one_handler() {
-int myStackTop; 
-int id;
- atomic {
-        stackInterruptTop = stackInterruptTop + 1;
-        myStackTop = stackInterruptTop;
-        stackInterrupt[myStackTop].IP = currentContext.IP; //save ip
-        stackInterrupt[myStackTop].r0 = currentContext.r0;
-        id = stackInterrupt[myStackTop].r0; 
- }
-
-    if 
-        ::(id == 0) -> { atomic {printf("interrupt with function 0\n"); currentContext.IP++ }}
-        ::(id == 1) -> { atomic {printf("interrupt with function 1\n"); currentContext.IP++ }}
-        :: else -> skip;
-    fi
-
-
- atomic{
-        currentContext.IP = stackInterrupt[stackInterruptTop].IP; //restore ip
-        stackInterruptTop-- ;
-    }
-}
-
-
-
-
-
-ltl check_me { [] <> (stack[0].IP == 2 && stack[1].IP == 2) }
+//ltl check_me { [] <> (stack[0].IP == 2 && stack[1].IP == 2) }

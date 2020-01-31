@@ -67,16 +67,16 @@ chan InterruptController = [0] of {short}; //for interrupt signals
 chan InterruptRet = [0] of {short}; //for interrupt returns
 
 
-//-------------------------------------------------------------------------------
-// Syscalls processing model
-//-------------------------------------------------------------------------------
-
-//syscalls
+//syscalls types
 mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_print}
 
 
+//-------------------------------------------------------------------------------
+// Scheduler model
+//-------------------------------------------------------------------------------
 
-//scheduler model
+
+//scheduler model entry
 inline runSched() {
     //run schedNonDeterministicInstance();
     run schedDeterministicInstance();
@@ -151,7 +151,6 @@ inline schedDeterministicInstanceLogic() {
 }
 
 
-
 proctype schedDeterministicInstance() {
     do
     ::(realTime < MAXTIMESIM) -> {
@@ -171,7 +170,7 @@ proctype schedDeterministicInstance() {
     od
 }
 
-
+//simple scheduler for education that peaks random partitions and threads (currently do not used)
 proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
@@ -197,6 +196,9 @@ proctype schedNonDeterministicInstance() {
 
 
 
+//-------------------------------------------------------------------------------
+// Syscalls model
+//-------------------------------------------------------------------------------
 
 
 
@@ -227,7 +229,7 @@ inline pok_delay(time) {
     pok_do_syscall(syscall_delay, sid, currentContext.r0);
 }
 
-//kernel library
+//kernel library for syscalls
 
 inline sem_signal(sid) {
     semaphores[sid].currentCount++; //update the counter
@@ -295,16 +297,19 @@ inline sleep(sleepTime) {
 //interrupts processing model
 active proctype InterruptHandler() {
 short intNum;
-int ret = 0; //stub
-int id = currentContext.r0;
-int param = currentContext.r1;
+
 do 
 :: true ->  {
     InterruptController ? intNum;
-    interruptsDisable = 1;
-    
+
+    int ret = 0; //stub
+    int id = currentContext.r0;
+    int param = currentContext.r1;
+    interruptsDisable = 1; //stop the scheduler
+    //save current context
+    //...
     if 
-        :: (intNum == 42) -> {
+        :: (intNum == 42) -> { //we react on only one interrupt
             if
                 :: (id == syscall_sem_v) -> sem_signal(param);
                 :: (id == syscall_sem_p) -> sem_wait(param);
@@ -314,6 +319,8 @@ do
         }
         :: else -> skip;
     fi
+    //restore current context
+    //...
     interruptsDisable = 0;
     InterruptRet ! ret;
     }
@@ -322,8 +329,13 @@ od
 
 
 
+//-------------------------------------------------------------------------------
+// User code
+//-------------------------------------------------------------------------------
+
+
 //user's tread logic
-//model: see examples/semaphores on pok repo
+//model: see examples/semaphores in pok repo
 proctype threadP1T1(short myPartId; short myThreadId) {
 do
  :: (osLive == 1) -> {
@@ -398,6 +410,13 @@ od
 }
 
 
+
+//-------------------------------------------------------------------------------
+// Main 
+//-------------------------------------------------------------------------------
+
+
+
 inline createThread(partitionId, threadId) {
     partitions[partitionId].threads[threadId].id = partitionId * MAXPARTITIONS + threadId;
     partitions[partitionId].threads[threadId].partition = partitionId;
@@ -439,5 +458,9 @@ active proctype main() {
     
 }
 
+//to be: 
+// - memory checks
+// - "pointer verify" model like in pok
+// - semaphores
 
 //ltl check_me { [] <> (stack[0].IP == 2 && stack[1].IP == 2) }

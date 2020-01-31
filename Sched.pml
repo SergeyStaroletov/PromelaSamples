@@ -25,7 +25,7 @@ typedef Context {
 }
 
 typedef Thread {
-    Context stack[MAXSTACK];
+    Context context;
     int timeSpacePerThread;
     bit isLocked;
     int wakeUpTime;
@@ -50,6 +50,8 @@ int currentPartition = 0;
 Context currentContext;
 
 Semaphore semaphores[MAXSEMAPHORES];
+
+//our main composite data struct
 Partition partitions[MAXPARTITIONS];
 
 
@@ -83,13 +85,31 @@ inline runSched() {
 }
 
 
+inline saveCurrentContext() {
+    partitions[currentPartition].threads[currentThread].context.IP = currentContext.IP;
+    partitions[currentPartition].threads[currentThread].context.sp = currentContext.sp;
+    partitions[currentPartition].threads[currentThread].context.r0 = currentContext.r0;
+    partitions[currentPartition].threads[currentThread].context.r1 = currentContext.r1;
+    partitions[currentPartition].threads[currentThread].context.r2 = currentContext.r2;
+}
+
+inline restoreCurrentContext() {
+    currentContext.IP = partitions[currentPartition].threads[currentThread].context.IP;
+    currentContext.sp = partitions[currentPartition].threads[currentThread].context.sp;
+    currentContext.r0 = partitions[currentPartition].threads[currentThread].context.r0;
+    currentContext.r1 = partitions[currentPartition].threads[currentThread].context.r1;
+    currentContext.r2 = partitions[currentPartition].threads[currentThread].context.r2;
+}
+
+
 //scheduler logic - it was declared as inline to call it from sleep
 inline schedDeterministicInstanceLogic() {
-    //save current instruction pointer
-    currentContext.sp++;
-    partitions[currentPartition].threads[currentThread].stack[currentContext.sp].IP = currentContext.IP;
-        
-    //fix time for awaiting threads
+    //save current context
+    saveCurrentContext(); 
+    short currentPartitionC = currentPartition; //candidates to switch
+    short currentThreadC = currentThread;
+
+    //fix time for sleeping threads
     short partIter = 0;
     bit needPeakAThread = 0;
     do
@@ -98,7 +118,7 @@ inline schedDeterministicInstanceLogic() {
             do
                 ::(threadIter < MAXTHREADS) -> {
                     if
-                        ::(partitions[partIter].threads[threadIter].wakeUpTime <= realTime) -> {
+                        ::(partitions[partIter].threads[threadIter].wakeUpTime <= realTime) -> { //wakeup time is over
                             partitions[partIter].threads[threadIter].wakeUpTime = 0; //that will stop its waiting
                         }
                         ::else -> skip; 
@@ -110,44 +130,71 @@ inline schedDeterministicInstanceLogic() {
         ::else -> break;
     od
 
-
-
     //check run time and select a next partition
     if  
         :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->
         {
-            currentPartition++;
+            currentPartitionC++;
             if 
-                :: (currentPartition == MAXPARTITIONS) -> currentPartition = 0;
+                :: (currentPartitionC == MAXPARTITIONS) -> currentPartitionC = 0;
                 :: else -> skip;
             fi
             schedCurrentPartitionRunTime = 0;
             schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
             needPeakAThread = 1;
-            currentThread = -1;//?
+            currentThreadC = -1; //?
         }
         :: else -> skip;
     fi
     //calulate run time and select a next thread
     if
-        :: (needPeakAThread == 1) || (schedCurrentThreadRunTime > partitions[currentPartition].threads[currentThread].timeSpacePerThread) -> {
+        ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > partitions[currentPartition].threads[currentThread].timeSpacePerThread) -> {
             //find next non locked and sleeped thread  
-            currentThread++; 
+            
+            short nextThread = currentThreadC + 1;
             if
-                :: (currentThread == MAXTHREADS) -> {
-                    currentThread = 0;
+                :: (nextThread == MAXTHREADS) -> {
+                        nextThread = 0;
                 }
                 :: else -> skip;
             fi
-            schedCurrentThreadRunTime = 0;
+            
+            bit isNextFound = 0;
+            do ::(nextThread != currentThreadC) -> { //do while we interate all threads
+                if 
+                    ::(partitions[currentPartitionC].threads[nextThread].isLocked == 0) &&
+                    (partitions[currentPartitionC].threads[nextThread].wakeUpTime == 0)  -> {
+                        isNextFound = 1; //we found non-locked and non-sleeping thread
+                        break;
+                    }
+                    ::else -> skip;
+                fi
+                nextThread++; 
+                if
+                    :: (nextThread == MAXTHREADS) -> {
+                        nextThread = 0;
+                    }
+                    :: else -> skip;
+                fi
+                }
+               ::else -> break;
+            od
+            //if we found a thread, change the variables values
+            if 
+                :: (isNextFound && nextThread != -1) -> {
+                    //we found a next working thread to switch to
+                    schedCurrentThreadRunTime = 0;
+                    currentThread = nextThread;
+                    currentPartition = currentPartitionC;
+                }
+                :: else -> skip; //we do not found a thread - rollback??
+            fi
         }
         :: else -> skip; 
     fi
 
-        //switch current instruction pointer
-    currentContext.sp = partitions[currentPartition].threads[currentThread].stack[0].sp; //???????
-    currentContext.IP = partitions[currentPartition].threads[currentThread].stack[currentContext.sp].IP;
-    currentContext.sp--;
+    //switch current context
+    restoreCurrentContext();
 }
 
 
@@ -201,7 +248,6 @@ proctype schedNonDeterministicInstance() {
 //-------------------------------------------------------------------------------
 
 
-
 //universal syscall executor - emulates interrupt caller
 inline pok_do_syscall(N, param, ret) {
     atomic {
@@ -216,7 +262,8 @@ inline pok_do_syscall(N, param, ret) {
 }
 
 
-//user library
+//library available to user
+
 inline pok_sem_signal(sid, ret) {
     pok_do_syscall(syscall_sem_v, sid, ret);
 }
@@ -233,6 +280,11 @@ inline pok_delay(time) {
 
 inline sem_signal(sid) {
     semaphores[sid].currentCount++; //update the counter
+    if  //check?
+        ::(semaphores[sid].currentCount > semaphores[sid].maxCount) -> semaphores[sid].currentCount = semaphores[sid].maxCount;
+        ::else -> skip;
+    fi
+
     if
         ::(semaphores[sid].currentCount == 0) -> {
             //we need to unlock an awaiting thread -> just remove it from list of awaiters
@@ -274,6 +326,11 @@ inline sem_signal(sid) {
 
 inline sem_wait(sid) {
     semaphores[sid].currentCount--; //update the counter
+    if 
+        ::(semaphores[sid].currentCount < -1) -> semaphores[sid].currentCount = -1;
+        ::else -> skip;
+    fi
+
     if
         ::(semaphores[sid].currentCount < 0) -> {
             //we need to lock the current thread
@@ -287,10 +344,9 @@ inline sem_wait(sid) {
 }
 
 
-
 inline sleep(sleepTime) {
     partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
-    schedDeterministicInstanceLogic();
+    //schedDeterministicInstanceLogic(); //--buggy for now
 }
 
 
@@ -306,8 +362,7 @@ do
     int id = currentContext.r0;
     int param = currentContext.r1;
     interruptsDisable = 1; //stop the scheduler
-    //save current context
-    //...
+    saveCurrentContext();
     if 
         :: (intNum == 42) -> { //we react on only one interrupt
             if
@@ -320,7 +375,7 @@ do
         :: else -> skip;
     fi
     //restore current context
-    //...
+    restoreCurrentContext();
     interruptsDisable = 0;
     InterruptRet ! ret;
     }
@@ -420,7 +475,7 @@ od
 inline createThread(partitionId, threadId) {
     partitions[partitionId].threads[threadId].id = partitionId * MAXPARTITIONS + threadId;
     partitions[partitionId].threads[threadId].partition = partitionId;
-    partitions[partitionId].threads[threadId].stack[0].IP = 0;
+    partitions[partitionId].threads[threadId].context.IP = 0;
     partitions[partitionId].threads[threadId].wakeUpTime = 0;
     partitions[partitionId].threads[threadId].isLocked = 0;
 }
@@ -444,6 +499,7 @@ active proctype main() {
     partitions[1].threads[1].isLocked = 1;
 
     semaphores[0].currentCount = 50;
+    semaphores[0].maxCount = 50;
   
     currentThread = 0;
     currentPartition = PARTITION1;

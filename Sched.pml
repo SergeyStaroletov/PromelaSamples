@@ -164,7 +164,7 @@ inline schedDeterministicInstanceLogic() {
                 if 
                     ::(partitions[currentPartitionC].threads[nextThread].isLocked == 0) &&
                     (partitions[currentPartitionC].threads[nextThread].wakeUpTime == 0)  -> {
-                        isNextFound = 1; //we found non-locked and non-sleeping thread
+                        isNextFound = 1; //we found a non-locked and non-sleeping thread
                         break;
                     }
                     ::else -> skip;
@@ -222,8 +222,8 @@ proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
         atomic {
-            //stack[currentPartition * MAXPARTITIONS + currentThread].IP = currentContext.IP;
-            //select partition
+            saveCurrentContext(); 
+
             //non-deterministic scheduler - rewrite?
             if
                 ::true -> currentPartition = 0;
@@ -233,8 +233,8 @@ proctype schedNonDeterministicInstance() {
                 ::(currentThread == 0) -> currentThread = 1; //stub
                 :: else -> currentThread = 0;
             fi
-            //currentContext.IP = stack[currentPartition * MAXPARTITIONS + currentThread].IP;
             realTime++;
+            restoreCurrentContext();
         }
      }
     :: else -> {printf("Pardon, time is over!\n"); osLive = 0; break;}

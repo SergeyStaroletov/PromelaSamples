@@ -104,8 +104,11 @@ inline restoreCurrentContext() {
 
 //scheduler logic - it was declared as inline to call it from sleep
 inline schedDeterministicInstanceLogic() {
+    printf("sched active\n");
     //save current context
     saveCurrentContext(); 
+    printf("sched active1\n");
+
     short currentPartitionC = currentPartition; //candidates to switch
     short currentThreadC = currentThread;
 
@@ -122,12 +125,15 @@ inline schedDeterministicInstanceLogic() {
                         }
                         ::else -> skip; 
                     fi
+                    threadIter++;
                 }
                 ::else -> break;
             od
+            partIter++;
         }
         ::else -> break;
     od
+    printf("sched active2\n");
 
     bit needPeakAThread = 0;
     //check run time and select a next partition
@@ -146,6 +152,9 @@ inline schedDeterministicInstanceLogic() {
         }
         :: else -> skip;
     fi
+
+        printf("sched active3\n");
+
     //calulate run time and select a next thread
     if
         ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > partitions[currentPartition].threads[currentThread].timeSpacePerThread) -> {
@@ -192,6 +201,7 @@ inline schedDeterministicInstanceLogic() {
         }
         :: else -> skip; 
     fi
+    printf("sched active4\n");
 
     //switch current context
     restoreCurrentContext();
@@ -265,14 +275,17 @@ inline pok_do_syscall(N, param, ret) {
 //library available to user
 
 inline pok_sem_signal(sid, ret) {
+    printf("pok_sem_signal\n");
     pok_do_syscall(syscall_sem_v, sid, ret);
 }
 
 inline pok_sem_wait(sid, ret) {
+    printf("pok_sem_wait\n");
     pok_do_syscall(syscall_sem_p, sid, ret);
 }
 
 inline pok_delay(time) {
+    printf("pok_delay\n");
     pok_do_syscall(syscall_delay, sid, currentContext.r0);
 }
 
@@ -291,9 +304,9 @@ inline sem_signal(sid) {
             if
                 ::(semaphores[sid].threadAwaitingCount > 0) -> {
                     //remove = decrement
-                    semaphores[sid].threadAwaitingCount--;
                     //put islocked (not safe solution)
                     short idd = semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount];
+                    semaphores[sid].threadAwaitingCount--;
                     //find the thread by dfs using its id
                     short partIter = 0;
                     do
@@ -309,9 +322,11 @@ inline sem_signal(sid) {
                                         }
                                         ::else -> skip; 
                                     fi
+                                    threadIter++;
                                 }
                                 ::else -> break;
                             od
+                            partIter++;
                         }
                         ::else -> break;
                     od
@@ -335,9 +350,10 @@ inline sem_wait(sid) {
         ::(semaphores[sid].currentCount < 0) -> {
             //we need to lock the current thread
             partitions[currentPartition].threads[currentThread].isLocked = 1;
-            semaphores[sid].threadAwaitingCount++;
             //save current thread calculated id into the semaphore waiting list
+            printf("threadAwaitingCount = %d\n", semaphores[sid].threadAwaitingCount);
             semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount] = currentPartition * MAXPARTITIONS + currentThread;
+            semaphores[sid].threadAwaitingCount++;
         }
         ::else -> skip; 
     fi
@@ -500,6 +516,7 @@ active proctype main() {
 
     semaphores[0].currentCount = 50;
     semaphores[0].maxCount = 50;
+    semaphores[0].threadAwaitingCount = 0;
   
     currentThread = 0;
     currentPartition = PARTITION1;

@@ -14,6 +14,7 @@
 #define INTERRUPT MAXPARTITIONS
 #define MAXTIMESIM 10000
 
+#define NOPARAM -42
 //internal data declaration
 
 typedef Context {
@@ -26,7 +27,7 @@ typedef Context {
 
 typedef Thread {
     Context context;
-    int timeSpacePerThread;
+    short timeSpacePerThread;
     bit isLocked;
     int wakeUpTime;
     short id;
@@ -41,12 +42,12 @@ typedef Partition {
 typedef Semaphore {
     short maxCount;
     short currentCount;
-    short theadsAwaiting[MAXTHREADS];
+    short theadsAwaiting[MAXTHREADS * MAXPARTITIONS];
     short threadAwaitingCount;
 }
 
-int currentThread = 0;
-int currentPartition = 0;
+short currentThread = 0;
+short currentPartition = 0;
 Context currentContext;
 
 Semaphore semaphores[MAXSEMAPHORES];
@@ -60,18 +61,32 @@ short schedCurrentPartitionRunTime = 0;
 short schedCurrentThreadRunTime = 0;
 
 bit osLive = 1;
-bit interruptsDisable = 0;
+bit interruptsDisabled = 0;
 
-int sid = 0;
-
+short sid = 0;
 
 chan InterruptController = [0] of {short}; //for interrupt signals
 chan InterruptRet = [0] of {short}; //for interrupt returns
 
+bit pointersOk = 1;
 
 //syscalls types
-mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_print}
+mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_printf}
 
+//string constants
+#define P1T1_I_will_signal_semaphores 0
+#define P1T1_pok_sem_signal_ret 1
+#define P1T2_I_will_wait_for_the_semaphores 2
+#define P1T2_pok_sem_wait_ret 3
+#define P2T1_begin_of_task 4
+
+short partitionByDataIndex[10] = {
+        PARTITION1,  
+        PARTITION1,
+        PARTITION1,
+        PARTITION1,
+        PARTITION2
+};
 
 //-------------------------------------------------------------------------------
 // Scheduler model
@@ -216,7 +231,7 @@ proctype schedDeterministicInstance() {
         schedCurrentPartitionRunTime++;
         schedCurrentThreadRunTime++;
         if 
-            ::(interruptsDisable == 0) ->
+            ::(interruptsDisabled == 0) ->
             atomic {
                 schedDeterministicInstanceLogic();
             }
@@ -259,11 +274,15 @@ proctype schedNonDeterministicInstance() {
 
 
 //universal syscall executor - emulates interrupt caller
-inline pok_do_syscall(N, param, ret) {
+inline pok_do_syscall(N, param1, param2, ret) {
     atomic {
     //pass the params
     currentContext.r0 = N;
-    currentContext.r1 = param;
+    currentContext.r1 = param1;
+    if 
+        ::(param2 != NOPARAM) -> currentContext.r2 = param2;
+        ::else -> skip
+    fi
     }
     //emit the interrupt
     InterruptController ! 42;
@@ -276,17 +295,25 @@ inline pok_do_syscall(N, param, ret) {
 
 inline pok_sem_signal(sid, ret) {
     printf("pok_sem_signal\n");
-    pok_do_syscall(syscall_sem_v, sid, ret);
+    pok_do_syscall(syscall_sem_v, sid, NOPARAM, ret);
 }
 
 inline pok_sem_wait(sid, ret) {
     printf("pok_sem_wait\n");
-    pok_do_syscall(syscall_sem_p, sid, ret);
+    pok_do_syscall(syscall_sem_p, sid, NOPARAM, ret);
 }
 
 inline pok_delay(time) {
     printf("pok_delay\n");
-    pok_do_syscall(syscall_delay, sid, currentContext.r0);
+    pok_do_syscall(syscall_delay, time, NOPARAM, currentContext.r0);
+}
+
+inline pok_print(string) {
+    pok_do_syscall(syscall_printf, string, NOPARAM, currentContext.r0);
+}
+
+inline pok_printf(string, param) {
+    pok_do_syscall(syscall_printf, string, param, currentContext.r0);
 }
 
 //kernel library for syscalls
@@ -304,9 +331,10 @@ inline sem_signal(sid) {
             if
                 ::(semaphores[sid].threadAwaitingCount > 0) -> {
                     //remove = decrement
-                    //put islocked (not safe solution)
-                    short idd = semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount];
+                    //put islocked (not safe solution) 
                     semaphores[sid].threadAwaitingCount--;
+                    short num = semaphores[sid].threadAwaitingCount;
+                    short idd = semaphores[sid].theadsAwaiting[num]; 
                     //find the thread by dfs using its id
                     short partIter = 0;
                     do
@@ -365,6 +393,31 @@ inline sleep(sleepTime) {
     //schedDeterministicInstanceLogic(); //--buggy for now
 }
 
+//check if we are in the correct partition
+inline checkPointer(expectedPartition, actualPartition) {
+    if
+        :: (expectedPartition != actualPartition) ->  {
+            pointersOk = 0;
+            printf("segmentatation fault!\n");
+        }
+        :: else -> skip
+    fi
+}
+
+
+inline print(string, param) {
+    //for each string it is know where does it locate, so we can check it 
+    checkPointer(partitionByDataIndex[string], currentPartition);
+    if
+        :: (string == P1T1_I_will_signal_semaphores) -> printf("P1T1: I will signal semaphores\n");
+        :: (string == P1T1_pok_sem_signal_ret) -> printf("P1T1: pok_sem_signal_ret = %d\n", param);
+        :: (string == P1T2_I_will_wait_for_the_semaphores) -> printf("P1T2: I will wait for the semaphores\n");
+        :: (string == P1T2_pok_sem_wait_ret) -> printf("P1T2: pok_sem_wait ret = %d\n", param);
+        :: (string == P2T1_begin_of_task) -> printf("P2T1: begin of task\n");
+        :: else -> skip
+    fi
+}
+
 
 //interrupts processing model
 active proctype InterruptHandler() {
@@ -376,23 +429,25 @@ do
 
     int ret = 0; //stub
     int id = currentContext.r0;
-    int param = currentContext.r1;
-    interruptsDisable = 1; //stop the scheduler
+    int param1 = currentContext.r1;
+    int param2 = currentContext.r2;
+    interruptsDisabled = 1; //stop the scheduler
     saveCurrentContext();
     if 
         :: (intNum == 42) -> { //we react on only one interrupt
             if
-                :: (id == syscall_sem_v) -> sem_signal(param);
-                :: (id == syscall_sem_p) -> sem_wait(param);
-                :: (id == syscall_delay) -> sleep(param);
-                :: else -> skip;
+                :: (id == syscall_sem_v) -> sem_signal(param1);
+                :: (id == syscall_sem_p) -> sem_wait(param1);
+                :: (id == syscall_delay) -> sleep(param1);
+                :: (id == syscall_printf) -> print(param1, param2);
+                :: else -> skip; //unknown syscall id
             fi
         }
         :: else -> skip;
     fi
     //restore current context
     restoreCurrentContext();
-    interruptsDisable = 0;
+    interruptsDisabled = 0;
     InterruptRet ! ret;
     }
 od
@@ -412,12 +467,12 @@ do
  :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
-     { printf("P1T1: I will signal semaphores\n"); currentContext.IP++;}
+     { pok_print(P1T1_I_will_signal_semaphores); currentContext.IP++;}
         :: else -> 
             if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
             { pok_sem_signal(sid, currentContext.r0); currentContext.IP++; }
             ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
-                { printf("P1T1: pok_sem_signal ret %d\n", currentContext.r0); currentContext.IP++; }
+                { pok_printf(P1T1_pok_sem_signal_ret, currentContext.r0); currentContext.IP++; }
                 ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
                     { pok_delay(2000); currentContext.IP = 0; /* inf loop */ }
                     ::else -> skip;
@@ -437,16 +492,16 @@ do
  :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
-     { printf("P1T2: I will wait for the semaphores\n"); currentContext.IP++; }
+     { pok_print(P1T2_I_will_wait_for_the_semaphores); currentContext.IP++; }
         :: else -> 
             if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
             { pok_sem_wait(sid, currentContext.r0); currentContext.IP++; }
             ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 2) -> 
-                { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
+                { pok_printf(P1T2_pok_sem_wait_ret, currentContext.r0); currentContext.IP++;}
                 ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 3) -> 
                     { pok_sem_wait(sid, currentContext.r0); currentContext.IP++; }
                     ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 4) -> 
-                        { printf("P1T1: pok_sem_wait ret %d\n", currentContext.r0); currentContext.IP++;}
+                        { pok_printf(P1T2_pok_sem_wait_ret, currentContext.r0); currentContext.IP++;}
                         ::else -> if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 5) -> 
                                 { pok_delay(2000); currentContext.IP = 0; }
                                  ::else -> skip;
@@ -467,7 +522,7 @@ do
  :: (osLive == 1) -> {
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
-     { printf("P2T1: begin of task\n"); currentContext.IP++;}
+     { pok_print(P2T1_begin_of_task); currentContext.IP++;}
         :: else -> 
             if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 1) -> 
             { pok_delay(5000); currentContext.IP = 0; }
@@ -531,9 +586,16 @@ active proctype main() {
     
 }
 
+//LTL predicates to check
 //to be: 
 // - memory checks
 // - "pointer verify" model like in pok
 // - semaphores
 
-//ltl check_me { [] <> (stack[0].IP == 2 && stack[1].IP == 2) }
+
+//check correct lock count since we have a strong constaint of the size of locking threads list
+//for this type of the system only one thread can be locked on semaphore waiting
+ltl correct_lock_count {[] (semaphores[0].threadAwaitingCount < 2)}
+
+//no violations to access a pointer from a wrong memory partition
+ltl pointers_partitions {[] (pointersOk == 1)}

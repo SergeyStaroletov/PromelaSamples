@@ -1,7 +1,7 @@
 
 //-----------------------------------------------------------------
 //First OS in Promela:)
-//moreover, it is a partitioned:)
+//moreover, it is a partitioned OS:)
 //(c) Sergey Staroletov
 //-----------------------------------------------------------------
 
@@ -15,35 +15,44 @@
 #define MAXTIMESIM 10000
 
 #define NOPARAM -42
+#define IDLE_THREAD 42
+
 //internal data declaration
 
+//model for state of current process
 typedef Context {
-    int IP;
-    int sp;
-    int r0;
+    int IP;         //instruction pointer
+    int sp;         //stack pointer - for futher modeling
+    int r0;         //arithmetic registers
     int r1;
     int r2;
 }
 
+//model for a thread (process) in system 
 typedef Thread {
-    Context context;
-    short timeSpacePerThread;
-    bit isLocked;
-    int wakeUpTime;
-    short id;
-    short partition;
+    Context context;  //thread context to save
+    short timeSpacePerThread; //count of ticks to thread work 
+    bit isLocked;     //1 if it has been locked on a semaphore
+    int wakeUpTime;   //wake up time to schedule using sleep
+    short id;         //unique thread id
+    short partition;  //number of parent partition
+    short prior;      //for futher model with priorities
 }
 
+//model for a partition, that has some threads and time piece for all threads inside
 typedef Partition {
-    short timeSpacePerPartition;
-    Thread threads[MAXTHREADS];
+    short timeSpacePerPartition; //count of ticks to run this partition
+    Thread threads[MAXTHREADS];  //threads of this partition
+    short schedulingFunction;    //type of sched for threads of this partition
+    short mainThread;            //first thread to run
 }
 
+//model for a locking object
 typedef Semaphore {
     short maxCount;
     short currentCount;
-    short theadsAwaiting[MAXTHREADS * MAXPARTITIONS];
-    short threadAwaitingCount;
+    short theadsAwaiting[MAXTHREADS * MAXPARTITIONS]; //list of threads waiting this object
+    short threadAwaitingCount;  //count of waiters
 }
 
 short currentThread = 0;
@@ -80,7 +89,7 @@ mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_printf}
 #define P1T2_pok_sem_wait_ret 3
 #define P2T1_begin_of_task 4
 
-short partitionByDataIndex[10] = {
+short partitionByDataIndex[5] = {
         PARTITION1,  
         PARTITION1,
         PARTITION1,
@@ -101,28 +110,36 @@ inline runSched() {
 
 
 inline saveCurrentContext() {
-    partitions[currentPartition].threads[currentThread].context.IP = currentContext.IP;
-    partitions[currentPartition].threads[currentThread].context.sp = currentContext.sp;
-    partitions[currentPartition].threads[currentThread].context.r0 = currentContext.r0;
-    partitions[currentPartition].threads[currentThread].context.r1 = currentContext.r1;
-    partitions[currentPartition].threads[currentThread].context.r2 = currentContext.r2;
+    if 
+    ::currentThread != IDLE_THREAD -> {
+        partitions[currentPartition].threads[currentThread].context.IP = currentContext.IP;
+        partitions[currentPartition].threads[currentThread].context.sp = currentContext.sp;
+        partitions[currentPartition].threads[currentThread].context.r0 = currentContext.r0;
+        partitions[currentPartition].threads[currentThread].context.r1 = currentContext.r1;
+        partitions[currentPartition].threads[currentThread].context.r2 = currentContext.r2;
+    } 
+    :: else -> skip;
+    fi
 }
 
 inline restoreCurrentContext() {
-    currentContext.IP = partitions[currentPartition].threads[currentThread].context.IP;
-    currentContext.sp = partitions[currentPartition].threads[currentThread].context.sp;
-    currentContext.r0 = partitions[currentPartition].threads[currentThread].context.r0;
-    currentContext.r1 = partitions[currentPartition].threads[currentThread].context.r1;
-    currentContext.r2 = partitions[currentPartition].threads[currentThread].context.r2;
+    if 
+    ::currentThread != IDLE_THREAD -> {
+        currentContext.IP = partitions[currentPartition].threads[currentThread].context.IP;
+        currentContext.sp = partitions[currentPartition].threads[currentThread].context.sp;
+        currentContext.r0 = partitions[currentPartition].threads[currentThread].context.r0;
+        currentContext.r1 = partitions[currentPartition].threads[currentThread].context.r1;
+        currentContext.r2 = partitions[currentPartition].threads[currentThread].context.r2;
+    }
+    :: else -> skip;
+    fi
 }
 
 
 //scheduler logic - it was declared as inline to call it from sleep
 inline schedDeterministicInstanceLogic() {
-    printf("sched active\n");
     //save current context
     saveCurrentContext(); 
-    printf("sched active1\n");
 
     short currentPartitionC = currentPartition; //candidates to switch
     short currentThreadC = currentThread;
@@ -148,43 +165,50 @@ inline schedDeterministicInstanceLogic() {
         }
         ::else -> break;
     od
-    printf("sched active2\n");
 
     bit needPeakAThread = 0;
     //check run time and select a next partition
     if  
         :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->
         {
-            currentPartitionC++;
-            if 
-                :: (currentPartitionC == MAXPARTITIONS) -> currentPartitionC = 0;
-                :: else -> skip;
-            fi
+            currentPartitionC = (currentPartitionC + 1) % MAXPARTITIONS;
+
             schedCurrentPartitionRunTime = 0;
             schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
             needPeakAThread = 1;
-            currentThreadC = -1; //?
+            currentThreadC = -1; 
+            currentPartition = currentPartitionC;
         }
         :: else -> skip;
     fi
 
-        printf("sched active3\n");
-
     //calulate run time and select a next thread
+    int currentMax = 0;
+    if 
+        ::(currentThread != IDLE_THREAD) ->
+            currentMax = partitions[currentPartition].threads[currentThread].timeSpacePerThread;
+        ::else -> {
+            needPeakAThread = 1;
+            currentThread = MAXTHREADS - 1;
+            currentThreadC = -1; 
+        }
+    fi
+
     if
-        ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > partitions[currentPartition].threads[currentThread].timeSpacePerThread) -> {
+        ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > currentMax) -> {
             //find next non locked and sleeped thread  
             
-            short nextThread = currentThreadC + 1;
-            if
-                :: (nextThread == MAXTHREADS) -> {
-                        nextThread = 0;
+            short nextThread = (currentThreadC + 1) % MAXTHREADS;
+            if 
+                ::currentThreadC == -1 -> 
+                {
+                    currentThreadC = MAXTHREADS - 1;
                 }
-                :: else -> skip;
+                ::else -> skip;
             fi
-            
             bit isNextFound = 0;
-            do ::(nextThread != currentThreadC) -> { //do while we interate all threads
+
+            do ::(nextThread != currentThreadC) && !isNextFound -> { //do while we interate all threads
                 if 
                     ::(partitions[currentPartitionC].threads[nextThread].isLocked == 0) &&
                     (partitions[currentPartitionC].threads[nextThread].wakeUpTime == 0)  -> {
@@ -193,16 +217,11 @@ inline schedDeterministicInstanceLogic() {
                     }
                     ::else -> skip;
                 fi
-                nextThread++; 
-                if
-                    :: (nextThread == MAXTHREADS) -> {
-                        nextThread = 0;
-                    }
-                    :: else -> skip;
-                fi
+                nextThread = (nextThread + 1) % MAXTHREADS; 
                 }
                ::else -> break;
             od
+
             //if we found a thread, change the variables values
             if 
                 :: (isNextFound && nextThread != -1) -> {
@@ -211,13 +230,16 @@ inline schedDeterministicInstanceLogic() {
                     currentThread = nextThread;
                     currentPartition = currentPartitionC;
                 }
-                :: else -> skip; //we do not found a thread - rollback??
+                :: else -> {
+                    //we did not find a thread - rollback??
+                    currentThread = IDLE_THREAD;
+                    currentPartition = currentPartitionC;
+                }; 
             fi
         }
         :: else -> skip; 
     fi
-    printf("sched active4\n");
-
+    
     //switch current context
     restoreCurrentContext();
 }

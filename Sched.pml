@@ -11,11 +11,11 @@
 #define MAXSEMAPHORES 1
 #define PARTITION1 0
 #define PARTITION2 1
-#define INTERRUPT MAXPARTITIONS
 #define MAXTIMESIM 10000
 
 #define NOPARAM -42
 #define IDLE_THREAD 42
+#define POK_INTERRUPT 42
 
 //internal data declaration
 
@@ -43,7 +43,7 @@ typedef Thread {
 typedef Partition {
     short timeSpacePerPartition; //count of ticks to run this partition
     Thread threads[MAXTHREADS];  //threads of this partition
-    short schedulingFunction;    //type of sched for threads of this partition
+    short schedulingStrategy;    //type of sched for threads of this partition
     short mainThread;            //first thread to run
 }
 
@@ -61,7 +61,9 @@ Context currentContext;
 
 Semaphore semaphores[MAXSEMAPHORES];
 
+//
 //our main composite data struct
+//
 Partition partitions[MAXPARTITIONS];
 
 
@@ -81,6 +83,8 @@ bit pointersOk = 1;
 
 //syscalls types
 mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_printf}
+//sched strategy types
+mtype = {sched_part_rms_strategy, sched_part_rr_strategy}
 
 //string constants
 #define P1T1_I_will_signal_semaphores 0
@@ -136,7 +140,95 @@ inline restoreCurrentContext() {
 }
 
 
-//scheduler logic - it was declared as inline to call it from sleep
+
+
+inline elect_next_partition(needPeakAThread) {
+ if  
+        :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->
+        {
+            currentPartition = (currentPartition + 1) % MAXPARTITIONS;
+
+            schedCurrentPartitionRunTime = 0;
+            schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
+            needPeakAThread = 1;
+        }
+        :: else -> skip;
+    fi
+}
+
+// RMS scheduling strategy (to be done)
+inline sched_part_rms() {
+   currentThread = (currentThread + 1) % MAXTHREADS;
+}
+
+// Round-Robin scheduling strategy with sleeping and blocking threads support
+inline sched_part_rr() {
+
+//check: do we need actually a switching (time of thread is over or we should schedule)    
+int currentMax = 0;
+ if 
+        ::(currentThread != IDLE_THREAD) ->
+            currentMax = partitions[currentPartition].threads[currentThread].timeSpacePerThread;
+        ::else -> {
+            needPeakAThread = 1;
+            currentThread = MAXTHREADS - 1;
+        }
+    fi
+
+    if
+        ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > currentMax) -> {
+            //find next non locked and sleeped thread              
+            short nextThread = (currentThread + 1) % MAXTHREADS;
+
+            bit isNextFound = 0;
+            do ::(nextThread != currentThread) && !isNextFound -> { //do while we interate all threads
+                if 
+                    ::(partitions[currentPartition].threads[nextThread].isLocked == 0) &&
+                    (partitions[currentPartition].threads[nextThread].wakeUpTime == 0)  -> {
+                        isNextFound = 1; //we found a non-locked and non-sleeping thread
+                        break;
+                    }
+                    ::else -> skip;
+                fi
+                nextThread = (nextThread + 1) % MAXTHREADS; 
+                }
+               ::else -> break;
+            od
+
+            //if we found a thread, change the variables values
+            if 
+                :: (isNextFound && nextThread != -1) -> {
+                    //we found a next working thread to switch to
+                    schedCurrentThreadRunTime = 0;
+                    currentThread = nextThread;
+                }
+                :: else -> {
+                    //we did not find a thread, but we need something to retul - switch to a virtual one
+                    currentThread = IDLE_THREAD;
+                    schedCurrentThreadRunTime = 0; //?
+                }; 
+            fi
+        }
+        :: else -> skip; 
+    fi
+
+}
+
+
+inline elect_next_thread(needPeakAThread) {
+
+    
+    if 
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_rms_strategy) -> sched_part_rms();
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_rr_strategy)  -> sched_part_rr();
+        :: else -> skip;
+    fi
+   
+
+}
+
+
+//Scheduler logic - it was declared as inline to call it from sleep
 inline schedDeterministicInstanceLogic() {
     //save current context
     saveCurrentContext(); 
@@ -144,7 +236,7 @@ inline schedDeterministicInstanceLogic() {
     short currentPartitionC = currentPartition; //candidates to switch
     short currentThreadC = currentThread;
 
-    //fix time for sleeping threads
+    //fix time for sleeping threads (clear waiting if possible)
     short partIter = 0;
     do
         ::(partIter < MAXPARTITIONS) -> {
@@ -167,78 +259,12 @@ inline schedDeterministicInstanceLogic() {
     od
 
     bit needPeakAThread = 0;
-    //check run time and select a next partition
-    if  
-        :: (schedCurrentPartitionRunTime > partitions[currentPartition].timeSpacePerPartition) ->
-        {
-            currentPartitionC = (currentPartitionC + 1) % MAXPARTITIONS;
 
-            schedCurrentPartitionRunTime = 0;
-            schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
-            needPeakAThread = 1;
-            currentThreadC = -1; 
-            currentPartition = currentPartitionC;
-        }
-        :: else -> skip;
-    fi
+    //check run time and select a next partition
+    elect_next_partition(needPeakAThread);
 
     //calulate run time and select a next thread
-    int currentMax = 0;
-    if 
-        ::(currentThread != IDLE_THREAD) ->
-            currentMax = partitions[currentPartition].threads[currentThread].timeSpacePerThread;
-        ::else -> {
-            needPeakAThread = 1;
-            currentThread = MAXTHREADS - 1;
-            currentThreadC = -1; 
-        }
-    fi
-
-    if
-        ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > currentMax) -> {
-            //find next non locked and sleeped thread  
-            
-            short nextThread = (currentThreadC + 1) % MAXTHREADS;
-            if 
-                ::currentThreadC == -1 -> 
-                {
-                    currentThreadC = MAXTHREADS - 1;
-                }
-                ::else -> skip;
-            fi
-            bit isNextFound = 0;
-
-            do ::(nextThread != currentThreadC) && !isNextFound -> { //do while we interate all threads
-                if 
-                    ::(partitions[currentPartitionC].threads[nextThread].isLocked == 0) &&
-                    (partitions[currentPartitionC].threads[nextThread].wakeUpTime == 0)  -> {
-                        isNextFound = 1; //we found a non-locked and non-sleeping thread
-                        break;
-                    }
-                    ::else -> skip;
-                fi
-                nextThread = (nextThread + 1) % MAXTHREADS; 
-                }
-               ::else -> break;
-            od
-
-            //if we found a thread, change the variables values
-            if 
-                :: (isNextFound && nextThread != -1) -> {
-                    //we found a next working thread to switch to
-                    schedCurrentThreadRunTime = 0;
-                    currentThread = nextThread;
-                    currentPartition = currentPartitionC;
-                }
-                :: else -> {
-                    //we did not find a thread - rollback??
-                    currentThread = IDLE_THREAD;
-                    currentPartition = currentPartitionC;
-                }; 
-            fi
-        }
-        :: else -> skip; 
-    fi
+    elect_next_thread(needPeakAThread);
     
     //switch current context
     restoreCurrentContext();
@@ -248,14 +274,13 @@ inline schedDeterministicInstanceLogic() {
 proctype schedDeterministicInstance() {
     do
     ::(realTime < MAXTIMESIM) -> {
-        realTime++;
-        //increase time on tick
+        realTime++;         //increase time on tick
         schedCurrentPartitionRunTime++;
         schedCurrentThreadRunTime++;
         if 
             ::(interruptsDisabled == 0) ->
             atomic {
-                schedDeterministicInstanceLogic();
+                schedDeterministicInstanceLogic(); //run scheduling logic
             }
         ::else ->skip;
         fi
@@ -264,7 +289,7 @@ proctype schedDeterministicInstance() {
     od
 }
 
-//simple scheduler for education that peaks random partitions and threads (currently do not used)
+//simple scheduler for education that peaks random partitions and threads (currently is not used)
 proctype schedNonDeterministicInstance() {
     do
     :: realTime < MAXTIMESIM -> {
@@ -307,7 +332,7 @@ inline pok_do_syscall(N, param1, param2, ret) {
     fi
     }
     //emit the interrupt
-    InterruptController ! 42;
+    InterruptController ! POK_INTERRUPT;
     //wait for iret
     InterruptRet ? ret;
 }
@@ -456,7 +481,7 @@ do
     interruptsDisabled = 1; //stop the scheduler
     saveCurrentContext();
     if 
-        :: (intNum == 42) -> { //we react on only one interrupt
+        :: (intNum == POK_INTERRUPT) -> { //we react on only one interrupt
             if
                 :: (id == syscall_sem_v) -> sem_signal(param1);
                 :: (id == syscall_sem_p) -> sem_wait(param1);
@@ -580,7 +605,10 @@ active proctype main() {
     // timeSpacePerPartition[MAXPARTITIONS] = {100, 100};
     // timeSpacePerThread[MAXPARTITIONS * MAXTHREADS] = {50, 50, 100, 0};
     partitions[0].timeSpacePerPartition = 100;
+    partitions[0].schedulingStrategy = sched_part_rr_strategy;
     partitions[1].timeSpacePerPartition = 100;
+    partitions[1].schedulingStrategy = sched_part_rr_strategy;
+
     createThread(0, 0);
     partitions[0].threads[0].timeSpacePerThread = 50;
     createThread(0, 1);
@@ -590,12 +618,14 @@ active proctype main() {
     createThread(1, 1);
     partitions[1].threads[1].timeSpacePerThread = 0;
     partitions[1].threads[1].isLocked = 1;
+    partitions[0].mainThread = 0;
+    partitions[0].mainThread = 0;
 
     semaphores[0].currentCount = 50;
     semaphores[0].maxCount = 50;
     semaphores[0].threadAwaitingCount = 0;
   
-    currentThread = 0;
+    currentThread = IDLE_THREAD;
     currentPartition = PARTITION1;
 
     //run scheduler instance

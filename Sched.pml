@@ -205,6 +205,7 @@ int currentMax = 0;
                 :: else -> {
                     //we did not find a thread, but we need something to retul - switch to a virtual one
                     currentThread = IDLE_THREAD;
+                    currentContext.IP = 0;
                     schedCurrentThreadRunTime = 0; //?
                 }; 
             fi
@@ -216,15 +217,11 @@ int currentMax = 0;
 
 
 inline elect_next_thread(needPeakAThread) {
-
-    
     if 
         :: (partitions[currentPartition].schedulingStrategy == sched_part_rms_strategy) -> sched_part_rms();
         :: (partitions[currentPartition].schedulingStrategy == sched_part_rr_strategy)  -> sched_part_rr();
         :: else -> skip;
     fi
-   
-
 }
 
 
@@ -438,6 +435,7 @@ inline sem_wait(sid) {
 inline sleep(sleepTime) {
     partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
     //schedDeterministicInstanceLogic(); //--buggy for now
+    
 }
 
 //check if we are in the correct partition
@@ -473,7 +471,7 @@ short intNum;
 do 
 :: true ->  {
     InterruptController ? intNum;
-
+    atomic {
     int ret = 0; //stub
     int id = currentContext.r0;
     int param1 = currentContext.r1;
@@ -497,6 +495,7 @@ do
     interruptsDisabled = 0;
     InterruptRet ! ret;
     }
+    }
 od
 }
 
@@ -511,7 +510,7 @@ od
 //model: see examples/semaphores in pok repo
 proctype threadP1T1(short myPartId; short myThreadId) {
 do
- :: (osLive == 1) -> {
+ :: (osLive == 1) -> 
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { pok_print(P1T1_I_will_signal_semaphores); currentContext.IP++;}
@@ -528,7 +527,6 @@ do
             fi
         fi 
      }
- }
  :: else -> break;
 od
 }
@@ -536,7 +534,7 @@ od
 
 proctype threadP1T2(short myPartId; short myThreadId) {
 do
- :: (osLive == 1) -> {
+ :: (osLive == 1) -> 
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { pok_print(P1T2_I_will_wait_for_the_semaphores); currentContext.IP++; }
@@ -559,14 +557,13 @@ do
             fi
         fi 
      }
- }
   :: else -> break;
   od
 }
 
 proctype threadP2T1(short myPartId; short myThreadId) {
 do
- :: (osLive == 1) -> {
+ :: (osLive == 1) -> 
      atomic {
      if ::(currentPartition == myPartId && currentThread == myThreadId && currentContext.IP == 0) -> 
      { pok_print(P2T1_begin_of_task); currentContext.IP++;}
@@ -577,7 +574,6 @@ do
             fi
         fi 
      }
- }
 :: else -> break;
 od
 }

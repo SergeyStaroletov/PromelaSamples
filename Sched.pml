@@ -177,7 +177,7 @@ int currentMax = 0;
 
     if
         ::(needPeakAThread == 1) || (schedCurrentThreadRunTime > currentMax) -> {
-            //find next non locked and sleeped thread              
+            //find next non-locked and non-sleeping thread              
             short nextThread = (currentThread + 1) % MAXTHREADS;
 
             bit isNextFound = 0;
@@ -195,7 +195,7 @@ int currentMax = 0;
                ::else -> break;
             od
 
-            //if we found a thread, change the variables values
+            //if we found a good thread, change the variables values
             if 
                 :: (isNextFound && nextThread != -1) -> {
                     //we found a next working thread to switch to
@@ -203,11 +203,11 @@ int currentMax = 0;
                     currentThread = nextThread;
                 }
                 :: else -> {
-                    //we did not find a thread, but we need something to retul - switch to a virtual one
+                    //we did not find a thread, but we need something to return - switch to a virtual one
                     currentThread = IDLE_THREAD;
                     currentContext.IP = 0;
                     schedCurrentThreadRunTime = 0; //?
-                }; 
+                }
             fi
         }
         :: else -> skip; 
@@ -435,7 +435,7 @@ inline sem_wait(sid) {
 inline sleep(sleepTime) {
     partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
     //schedDeterministicInstanceLogic(); //--buggy for now
-    
+
 }
 
 //check if we are in the correct partition
@@ -443,7 +443,7 @@ inline checkPointer(expectedPartition, actualPartition) {
     if
         :: (expectedPartition != actualPartition) ->  {
             pointersOk = 0;
-            printf("segmentatation fault!\n");
+            printf("segmentation fault!\n");
         }
         :: else -> skip
     fi
@@ -451,7 +451,7 @@ inline checkPointer(expectedPartition, actualPartition) {
 
 
 inline print(string, param) {
-    //for each string it is know where does it locate, so we can check it 
+    //for each string it is known where does it locate, so we can check it 
     checkPointer(partitionByDataIndex[string], currentPartition);
     if
         :: (string == P1T1_I_will_signal_semaphores) -> printf("P1T1: I will signal semaphores\n");
@@ -506,7 +506,7 @@ od
 //-------------------------------------------------------------------------------
 
 
-//user's tread logic
+//user's thread logic
 //model: see examples/semaphores in pok repo
 proctype threadP1T1(short myPartId; short myThreadId) {
 do
@@ -639,9 +639,11 @@ active proctype main() {
 // - memory checks
 // - "pointer verify" model like in pok
 // - semaphores
+// - scheduling: times, fairly? 
 
+//demo formulas
 
-//check correct lock count since we have a strong constaint of the size of locking threads list
+//check correct lock count since we have a strong constraint of the size of locking threads list
 //for this type of the system only one thread can be locked on semaphore waiting
 ltl correct_lock_count {[] (semaphores[0].threadAwaitingCount < 2)}
 

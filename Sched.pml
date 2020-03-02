@@ -37,6 +37,7 @@ typedef Thread {
     short id;         //unique thread id
     short partition;  //number of parent partition
     short prior;      //for futher model with priorities
+    short rate;       //current execution time - for rms
 }
 
 //model for a partition, that has some threads and time piece for all threads inside
@@ -84,7 +85,7 @@ bit pointersOk = 1;
 //syscalls types
 mtype = {syscall_sem_p, syscall_sem_v, syscall_delay, syscall_printf}
 //sched strategy types
-mtype = {sched_part_rms_strategy, sched_part_rr_strategy}
+mtype = {sched_part_rms_strategy, sched_part_rr_strategy, sched_part_edf_strategy, sched_part_llf_strategy}
 
 //string constants
 #define P1T1_I_will_signal_semaphores 0
@@ -156,12 +157,23 @@ inline elect_next_partition(needPeakAThread) {
     fi
 }
 
-// RMS scheduling strategy (to be done)
+// LLF (least laxity first) scheduling strategy (to be done)
+inline sched_part_llf() {
+   currentThread = (currentThread + 1) % MAXTHREADS;
+}
+
+// EDF (earliest deadline first) scheduling strategy (to be done)
+inline sched_part_edf() {
+   currentThread = (currentThread + 1) % MAXTHREADS;
+}
+
+
+// RMS (rate monothonic) scheduling strategy (to be done)
 inline sched_part_rms() {
    currentThread = (currentThread + 1) % MAXTHREADS;
 }
 
-// Round-Robin scheduling strategy with sleeping and blocking threads support
+// RR round-robin scheduling strategy with sleeping and blocking threads support
 inline sched_part_rr() {
 
 //check: do we need actually a switching (time of thread is over or we should schedule)    
@@ -220,6 +232,8 @@ inline elect_next_thread(needPeakAThread) {
     if 
         :: (partitions[currentPartition].schedulingStrategy == sched_part_rms_strategy) -> sched_part_rms();
         :: (partitions[currentPartition].schedulingStrategy == sched_part_rr_strategy)  -> sched_part_rr();
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_llf_strategy) -> sched_part_llf();
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_edf_strategy) -> sched_part_edf();
         :: else -> skip;
     fi
 }

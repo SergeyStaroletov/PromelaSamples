@@ -21,25 +21,28 @@ short cv[MAX1]; //covid-19 RNK:) from https://www.ncbi.nlm.nih.gov/nuccore/NC_04
 short sample[MAX2];
 
 short substring[MAX3];
-short substringLen;
+short substringMaxLen = 0;
 
 
 short pos1 = 0;
 short pos2 = 0;
 
 short prob = 90;
-bit isFound = 1;
+short cases_total = 0;
+short caese_ok = 0;
+
+bit isNotFound = 1;
 bit isReady = 0;
 
 short maxLen = 10;
 
 
 
-inline prin_genome(lenn) {
+inline print_genome(length) {
     short p = 0;
     printf("---->\n");
     do
-        ::(p < lenn) -> {
+        ::(p < length) -> {
             if
                 ::(substring[p] == 0) -> printf("a");
                 ::(substring[p] == 1) -> printf("t");
@@ -4329,43 +4332,46 @@ isReady = 1;
 
 
 
-   // run String2();
-    run String1();
+run Logic();
     
 
     
-    printf("processes started\n");
 
 }
 
 
 
 
-proctype String1() {
+proctype Logic() {
     do
         ::(pos1 < MAX1) -> {
             pos2 = 0;
             do
             ::(pos2 < MAX2) -> {
                 //printf("I am comparing the strings...\n");
-                short pos = pos2;
-                short pos_start = pos1;
+                short pos2go = pos2;
+                short pos1go = pos1;
                 short currentLen = 0;
 
                 do 
-                    :: (pos_start < MAX1) && (pos < MAX2) && (cv[pos_start] == sample[pos])-> {
-                        substring[currentLen] = sample[pos]; 
-                        currentLen = currentLen + 1;
+                    :: (pos1go < MAX1) && (pos2go < MAX2) && (cv[pos1go] == sample[pos2go])-> {
+                        substring[currentLen] = sample[pos2go]; 
+                        currentLen++;
                         //printf("I got  substring with len = %d\n", currentLen);
-                        pos = pos + 1;
-                        pos_start = pos_start + 1;
+                        pos1go++;
+                        pos2go++;
                         if
                             ::(currentLen >= maxLen) -> 
                             {
                                 printf("I got  substring with len = %d\n", currentLen);
 
-                                prin_genome(currentLen);
-                                isFound = 0;
+                                if
+                                    ::(currentLen > substringMaxLen) ->  substringMaxLen = currentLen;
+                                    ::else -> skip;
+                                fi
+
+                                print_genome(currentLen);
+                                isNotFound = 0;
                             }
                             ::else -> skip;
                         fi
@@ -4380,17 +4386,11 @@ proctype String1() {
         } 
         ::else -> break;
     od
-}
 
-proctype String2() {
-    atomic {
-    do
-        ::(pos2 < MAX2 - 1) -> {pos2 = pos2 + 1; printf("pos2 = %d\n", pos2);};
-        ::break;
-    od
-    printf("end with pos2 = %d\n", pos2);
-    }
+    printf("\nMax len was : %d\n", substringMaxLen);
 
 }
 
-ltl check_never {[] (isReady -> (isFound == 1)) }
+
+
+ltl check_never {[] (isReady -> (isNotFound == 1)) }

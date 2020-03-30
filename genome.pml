@@ -51,6 +51,7 @@ inline prin_genome(lenn) {
         }
         ::else -> break;
     od
+    printf("\n");
 }
 
 
@@ -4328,7 +4329,7 @@ isReady = 1;
 
 
 
-    run String2();
+   // run String2();
     run String1();
     
 
@@ -4342,33 +4343,42 @@ isReady = 1;
 
 proctype String1() {
     do
-        ::(pos1 < MAX1 - 1) -> {pos1 = pos1 + 1; printf("pos1 = %d\n", pos1);}
-        :: true -> {
-            printf("I am comparing the strings...\n");
-            short pos = pos2;
-            short pos_start = pos1;
-            short currentLen = 0;
+        ::(pos1 < MAX1) -> {
+            pos2 = 0;
+            do
+            ::(pos2 < MAX2) -> {
+                //printf("I am comparing the strings...\n");
+                short pos = pos2;
+                short pos_start = pos1;
+                short currentLen = 0;
 
-            do 
-                :: (pos_start < MAX1) && (pos < MAX2) && (cv[pos_start] == sample[pos])-> {
-                    substring[currentLen] = sample[pos]; 
-                    currentLen = currentLen + 1;
-                    printf("I got  substring with len = %d\n", currentLen);
-                    pos = pos + 1;
-                    pos_start = pos_start + 1;
-                    if
-                        ::(currentLen >= maxLen) -> 
-                        {
-                            prin_genome(currentLen);
-                            isFound = 0;
+                do 
+                    :: (pos_start < MAX1) && (pos < MAX2) && (cv[pos_start] == sample[pos])-> {
+                        substring[currentLen] = sample[pos]; 
+                        currentLen = currentLen + 1;
+                        //printf("I got  substring with len = %d\n", currentLen);
+                        pos = pos + 1;
+                        pos_start = pos_start + 1;
+                        if
+                            ::(currentLen >= maxLen) -> 
+                            {
+                                printf("I got  substring with len = %d\n", currentLen);
+
+                                prin_genome(currentLen);
+                                isFound = 0;
+                            }
+                            ::else -> skip;
+                        fi
                         }
-                        ::else -> skip;
-                    fi
-                    }
-                ::else-> break;
-            od             
+                    ::else-> break;
+                od     
+                pos2++;
+                }
+                ::else -> break;
+            od        
+        pos1++;
         } 
-        ::break;
+        ::else -> break;
     od
 }
 

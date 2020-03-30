@@ -28,8 +28,8 @@ short pos1 = 0;
 short pos2 = 0;
 
 short prob = 90;
-short cases_total = 0;
-short caese_ok = 0;
+short casesTotal = 0;
+short casesOk = 0;
 
 bit isNotFound = 1;
 bit isReady = 0;
@@ -55,6 +55,71 @@ inline print_genome(length) {
         ::else -> break;
     od
     printf("\n");
+}
+
+
+
+
+proctype Logic() {
+    do
+        ::(pos1 < MAX1) -> {
+            pos2 = 0;
+            casesTotal = 0;
+            casesOk = 0;
+            do
+            ::(pos2 < MAX2) -> {
+                short pos2go = pos2;
+                short pos1go = pos1;
+                short currentLen = 0;
+
+                do 
+                    :: (pos1go < MAX1) && (pos2go < MAX2) -> {
+                      casesTotal++;
+                      bit ifTrue = 0;
+                      if 
+                        ::(cv[pos1go] == sample[pos2go]) -> {casesOk++; ifTrue = 1;} //ok, symbols are equal
+                        ::(cv[pos1go] != sample[pos2go]) && (casesOk * 100 / casesTotal >= prob) -> ifTrue = 1; //not equal but probability of non-equal symbols is not exceeded 
+                        ::else -> skip; //other variant ?
+                      fi
+
+                       if ::(ifTrue == 1) -> {
+                        substring[currentLen] = sample[pos2go]; 
+                        currentLen++;
+                        pos1go++;
+                        pos2go++;
+                        if
+                            ::(currentLen >= maxLen) -> //we got a string with desired length
+                            {
+                                printf("I got a substring with len = %d\n", currentLen);
+
+                                if
+                                    ::(currentLen > substringMaxLen) ->  substringMaxLen = currentLen;
+                                    ::else -> skip;
+                                fi
+
+                                print_genome(currentLen);
+                                isNotFound = 0;
+                            }
+                            ::else -> skip;
+                        fi
+                        }//if true
+                        :: (ifTrue == 0) && (casesOk * 100 / casesTotal < prob) -> break;
+                        //all the possible varians are over
+                    fi
+                    }//do 
+                    ::else-> break;
+                od     
+                pos2++;
+                }
+                ::else -> break;
+            od        
+        pos1++;
+        } 
+        ::else -> break;
+    od
+
+    printf("\nMax len was : %d\n", substringMaxLen);
+
 }
 
 
@@ -4341,55 +4406,6 @@ run Logic();
 
 
 
-
-proctype Logic() {
-    do
-        ::(pos1 < MAX1) -> {
-            pos2 = 0;
-            do
-            ::(pos2 < MAX2) -> {
-                //printf("I am comparing the strings...\n");
-                short pos2go = pos2;
-                short pos1go = pos1;
-                short currentLen = 0;
-
-                do 
-                    :: (pos1go < MAX1) && (pos2go < MAX2) && (cv[pos1go] == sample[pos2go])-> {
-                        substring[currentLen] = sample[pos2go]; 
-                        currentLen++;
-                        //printf("I got  substring with len = %d\n", currentLen);
-                        pos1go++;
-                        pos2go++;
-                        if
-                            ::(currentLen >= maxLen) -> 
-                            {
-                                printf("I got  substring with len = %d\n", currentLen);
-
-                                if
-                                    ::(currentLen > substringMaxLen) ->  substringMaxLen = currentLen;
-                                    ::else -> skip;
-                                fi
-
-                                print_genome(currentLen);
-                                isNotFound = 0;
-                            }
-                            ::else -> skip;
-                        fi
-                        }
-                    ::else-> break;
-                od     
-                pos2++;
-                }
-                ::else -> break;
-            od        
-        pos1++;
-        } 
-        ::else -> break;
-    od
-
-    printf("\nMax len was : %d\n", substringMaxLen);
-
-}
 
 
 

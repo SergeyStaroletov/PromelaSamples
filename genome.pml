@@ -30,9 +30,10 @@ short substringMaxLen = 0;
 short pos1 = 0;
 short pos2 = 0;
 
-short prob = 89;
-int casesTotal = 0;
-int casesOk = 0;
+
+short prob = 89;    //match string probability
+int casesTotal = 0; //total compares
+int casesOk = 0;    //successful compares
 
 bit isNotFound = 1;
 bit isReady = 0;
@@ -63,11 +64,11 @@ inline print_genome(length) {
 short zf[STR_SIZE+PATTERN_SIZE+1];
 
 
-inline S(I, ret) {
+inline S(j, ret) { //ret = s[j]
     if
-        ::(I < PATTERN_SIZE) -> ret = sample[I];
-        ::(I == PATTERN_SIZE) -> ret = EPS; //marker
-        ::(I > PATTERN_SIZE) -> ret = cv[I - PATTERN_SIZE - 1];  
+        ::(j < PATTERN_SIZE) -> ret = sample[j];
+        ::(j == PATTERN_SIZE) -> ret = EPS; //marker
+        ::(j > PATTERN_SIZE) -> ret = cv[j - PATTERN_SIZE - 1];  
     fi
 }
 
@@ -87,6 +88,13 @@ inline MIN(a, b, ret) {
 
 proctype Logic() {
 
+    //spoil the data
+    sample[10] = A;
+    sample[11] = A;
+    sample[12] = A;
+    sample[13] = A;
+    
+
   //building Z-function
    int left = 0;
    int right = 0;
@@ -105,12 +113,26 @@ proctype Logic() {
             // while i + zf[i] < n and s[zf[i]] == s[i + zf[i]]
             bool isOk = true;
             do
-              ::isOk -> { //(i + zf[i] < n) && (s[zf[i]] == s[i + zf[i]]) -> zf[i]++;
+              ::isOk && ((i + zf[i]) < n) -> { //(i + zf[i] < n) && (s[zf[i]] == s[i + zf[i]]) -> zf[i]++;
                 short s1 = 0;
                 S(zf[i], s1);
                 short s2 = 0;
                 S((i + zf[i]), s2);
-                isOk = (i + zf[i] < n) && (s1 == s2);
+                bool isEuals = false;
+                casesTotal++;
+                if
+                    ::(s1 == s2) -> {isEuals = true; casesOk++;} 
+                    ::(s1 != s2) -> isEuals = false; 
+                    ::(s1 != s2) -> {
+                        if
+                            :: (casesOk * 100 / casesTotal >= prob) -> isEuals = true;
+                            :: else -> isEuals = false;
+                        fi
+                    }
+
+                fi
+
+                isOk = isEuals;
                 if 
                     ::isOk -> zf[i] = zf[i] + 1; 
                     ::else -> skip;
@@ -155,6 +177,11 @@ proctype Logic() {
 pos = (pos - PATTERN_SIZE - 1)
 
 printf("pos=%d\n", pos);
+if 
+    ::(pos == 90) -> isNotFound = 0;
+    ::else -> skip;
+fi
+
 
 }
 

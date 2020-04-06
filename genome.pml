@@ -4,11 +4,12 @@ Trying to solve genome comparing tasks using counter-example generation by the v
 https://www.researchgate.net/profile/Sergey_Staroletov
 */
 
-#define STR_SIZE 29903
+//#define STR_SIZE 29903
+#define STR_SIZE 200
 //#define STR_SIZE 651
 #define MAX2 29802
 #define PATTERN_SIZE 51
-#define MAX3 29903
+#define MAX3 29
 
 #define A 0
 #define T 1
@@ -18,7 +19,7 @@ https://www.researchgate.net/profile/Sergey_Staroletov
 
 
 short cv[STR_SIZE]; //covid-19 RNA:) from https://www.ncbi.nlm.nih.gov/nuccore/NC_045512.2
-short ba[MAX2]; //bat-SL-CoVZC45 RNA from https://www.ncbi.nlm.nih.gov/nuccore/MG772933
+//short ba[MAX2]; //bat-SL-CoVZC45 RNA from https://www.ncbi.nlm.nih.gov/nuccore/MG772933
 
 
 short sample[PATTERN_SIZE];
@@ -31,7 +32,7 @@ short pos1 = 0;
 short pos2 = 0;
 
 
-short prob = 89;    //match string probability
+short prob = 70;    //match string probability
 int casesTotal = 0; //total compares
 int casesOk = 0;    //successful compares
 
@@ -89,7 +90,7 @@ inline MIN(a, b, ret) {
 proctype Logic() {
 
     //spoil the data
-    sample[10] = A;
+   // sample[10] = A;
     sample[11] = A;
     sample[12] = A;
     sample[13] = A;
@@ -114,25 +115,27 @@ proctype Logic() {
             bool isOk = true;
             do
               ::isOk && ((i + zf[i]) < n) -> { //(i + zf[i] < n) && (s[zf[i]] == s[i + zf[i]]) -> zf[i]++;
+              printf("current: ok=%d total=%d\n", casesOk, casesTotal);
                 short s1 = 0;
                 S(zf[i], s1);
                 short s2 = 0;
                 S((i + zf[i]), s2);
-                bool isEuals = false;
-                casesTotal++;
+                bool isEquals = false;
+                //casesTotal++;
                 if
-                    ::(s1 == s2) -> {isEuals = true; casesOk++;} 
-                    ::(s1 != s2) -> isEuals = false; 
+                    ::(s1 == s2) -> {isEquals = true; } 
+                    ::(s1 != s2) -> {isEquals = false; }
                     ::(s1 != s2) -> {
+                        casesTotal++;
                         if
-                            :: (casesOk * 100 / casesTotal >= prob) -> isEuals = true;
-                            :: else -> isEuals = false;
+                            :: (casesOk * 100 / casesTotal  <= prob) -> {printf("olalal\n"); isEquals = true; casesOk++;}
+                            :: else -> {printf("done of prob \n"); isEquals = false;}
                         fi
                     }
 
                 fi
 
-                isOk = isEuals;
+                isOk = isEquals;
                 if 
                     ::isOk -> zf[i] = zf[i] + 1; 
                     ::else -> skip;
@@ -178,14 +181,18 @@ pos = (pos - PATTERN_SIZE - 1)
 
 printf("pos=%d\n", pos);
 if 
-    ::(pos == 90) -> isNotFound = 0;
+    ::(pos >= 0) -> {isNotFound = 0; printf("\nproperty violated!\n");}
     ::else -> skip;
 fi
 
 
+printf("ok=%d total=%d\n", casesOk, casesTotal);
+
+
+
 }
 
-
+/*
 proctype LogicTrivial() {
     do
         ::(pos1 < STR_SIZE) -> {
@@ -246,7 +253,7 @@ proctype LogicTrivial() {
     printf("\nMax len was : %d\n", substringMaxLen);
 }
 
-
+*/
 
 
 active proctype main() {
@@ -275,7 +282,7 @@ cv[163]=C; cv[164]=G; cv[165]=A; cv[166]=G; cv[167]=T; cv[168]=A; cv[169]=A; cv[
 cv[171]=T; cv[172]=C; cv[173]=G; cv[174]=T; cv[175]=C; cv[176]=T; cv[177]=A; cv[178]=T; 
 cv[179]=C; cv[180]=T; cv[181]=T; cv[182]=C; cv[183]=T; cv[184]=G; cv[185]=C; cv[186]=A; 
 cv[187]=G; cv[188]=G; cv[189]=C; cv[190]=T; cv[191]=G; cv[192]=C; cv[193]=T; cv[194]=T; 
-cv[195]=A; cv[196]=C; cv[197]=G; cv[198]=G; cv[199]=T; cv[200]=T; cv[201]=T; cv[202]=C; 
+cv[195]=A; cv[196]=C; cv[197]=G; cv[198]=G; cv[199]=T;/* cv[200]=T; cv[201]=T; cv[202]=C; 
 cv[203]=G; cv[204]=T; cv[205]=C; cv[206]=C; cv[207]=G; cv[208]=T; cv[209]=G; cv[210]=T; 
 cv[211]=T; cv[212]=G; cv[213]=C; cv[214]=A; cv[215]=G; cv[216]=C; cv[217]=C; cv[218]=G; 
 cv[219]=A; cv[220]=T; cv[221]=C; cv[222]=A; cv[223]=T; cv[224]=C; cv[225]=A; cv[226]=G; 
@@ -8748,7 +8755,7 @@ ba[29780]=A; ba[29781]=A; ba[29782]=A; ba[29783]=A; ba[29784]=A; ba[29785]=A; ba
 ba[29787]=A; ba[29788]=A; ba[29789]=A; ba[29790]=A; ba[29791]=A; ba[29792]=A; ba[29793]=A; 
 ba[29794]=A; ba[29795]=A; ba[29796]=A; ba[29797]=A; ba[29798]=A; ba[29799]=A; ba[29800]=A; 
 ba[29801]=A; 
-
+*/
 
 //----
 
@@ -8770,4 +8777,5 @@ run Logic();
 
 
 
-ltl check_never {[] (isReady -> (isNotFound == 1)) }
+//ltl check_never {[] (isReady -> (isNotFound == 1)) }
+ltl check_never {[] (isNotFound == 1) }

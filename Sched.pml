@@ -11,7 +11,7 @@
 #define MAXSEMAPHORES 1
 #define PARTITION1 0
 #define PARTITION2 1
-#define MAXTIMESIM 1000
+#define MAXTIMESIM 100000
 
 #define NOPARAM -42
 #define IDLE_THREAD 42
@@ -449,9 +449,13 @@ inline sem_wait(sid) {
             printf("threadAwaitingCount = %d\n", semaphores[sid].threadAwaitingCount);
             semaphores[sid].theadsAwaiting[semaphores[sid].threadAwaitingCount] = currentPartition * MAXPARTITIONS + currentThread;
             semaphores[sid].threadAwaitingCount++;
+            //and reschedule
+            bool re = true;
+            schedDeterministicInstanceLogic(re);
         }
         ::else -> skip; 
     fi
+
 }
 
 

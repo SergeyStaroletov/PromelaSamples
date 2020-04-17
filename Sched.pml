@@ -11,7 +11,7 @@
 #define MAXSEMAPHORES 1
 #define PARTITION1 0
 #define PARTITION2 1
-#define MAXTIMESIM 10000
+#define MAXTIMESIM 1000
 
 #define NOPARAM -42
 #define IDLE_THREAD 42
@@ -43,6 +43,7 @@ typedef Thread {
 //model for a partition, that has some threads and time piece for all threads inside
 typedef Partition {
     short timeSpacePerPartition; //count of ticks to run this partition
+    short threadCount;
     Thread threads[MAXTHREADS];  //threads of this partition
     short schedulingStrategy;    //type of sched for threads of this partition
     short mainThread;            //first thread to run
@@ -241,6 +242,8 @@ inline elect_next_thread(needPeakAThread) {
 
 //Scheduler logic - it was declared as inline to call it from sleep
 inline schedDeterministicInstanceLogic() {
+
+    //printf("sched in action...\n");
     //save current context
     saveCurrentContext(); 
 
@@ -276,7 +279,12 @@ inline schedDeterministicInstanceLogic() {
 
     //calulate run time and select a next thread
     elect_next_thread(needPeakAThread);
-    
+
+    if 
+    ::currentThread != IDLE_THREAD ->
+        printf("Elected thread: %d in partition %d\n", currentThread, currentPartition);
+    ::else -> skip;
+    fi
     //switch current context
     restoreCurrentContext();
 }
@@ -448,7 +456,8 @@ inline sem_wait(sid) {
 
 inline sleep(sleepTime) {
     partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
-    //schedDeterministicInstanceLogic(); //--buggy for now
+    //call the scheduler now
+    schedDeterministicInstanceLogic(); //buggy ?
 
 }
 
@@ -468,11 +477,11 @@ inline print(string, param) {
     //for each string it is known where does it locate, so we can check it 
     checkPointer(partitionByDataIndex[string], currentPartition);
     if
-        :: (string == P1T1_I_will_signal_semaphores) -> printf("P1T1: I will signal semaphores\n");
-        :: (string == P1T1_pok_sem_signal_ret) -> printf("P1T1: pok_sem_signal_ret = %d\n", param);
-        :: (string == P1T2_I_will_wait_for_the_semaphores) -> printf("P1T2: I will wait for the semaphores\n");
-        :: (string == P1T2_pok_sem_wait_ret) -> printf("P1T2: pok_sem_wait ret = %d\n", param);
-        :: (string == P2T1_begin_of_task) -> printf("P2T1: begin of task\n");
+        :: (string == P1T1_I_will_signal_semaphores) -> printf("[%d] P1T1: I will signal semaphores\n", realTime);
+        :: (string == P1T1_pok_sem_signal_ret) -> printf("[%d] P1T1: pok_sem_signal_ret = %d\n", realTime, param);
+        :: (string == P1T2_I_will_wait_for_the_semaphores) -> printf("[%d] P1T2: I will wait for the semaphores\n", realTime);
+        :: (string == P1T2_pok_sem_wait_ret) -> printf("[%d] P1T2: pok_sem_wait ret = %d\n", realTime, param);
+        :: (string == P2T1_begin_of_task) -> printf("[%d] P2T1: begin of task\n", realTime);
         :: else -> skip
     fi
 }

@@ -152,34 +152,34 @@ inline elect_next_partition(needPeakAThread) {
 
             schedCurrentPartitionRunTime = 0;
             schedCurrentThreadRunTime = 0; //we mean we change also the thread of the partition
-            needPeakAThread = 1;
+            needPeakAThread = true;
         }
         :: else -> skip;
     fi
 }
 
 // LLF (least laxity first) scheduling strategy (to be done)
-inline sched_part_llf() {
+inline sched_part_llf(needPeakAThread) {
    currentThread = (currentThread + 1) % MAXTHREADS;
 }
 
 // EDF (earliest deadline first) scheduling strategy (to be done)
-inline sched_part_edf() {
+inline sched_part_edf(needPeakAThread) {
    currentThread = (currentThread + 1) % MAXTHREADS;
 }
 
 
 // RMS (rate monothonic) scheduling strategy (to be done)
-inline sched_part_rms() {
+inline sched_part_rms(needPeakAThread) {
    currentThread = (currentThread + 1) % MAXTHREADS;
 }
 
 // RR round-robin scheduling strategy with sleeping and blocking threads support
-inline sched_part_rr() {
+inline sched_part_rr(needPeakAThread) {
 
 //check: do we need actually a switching (time of thread is over or we should schedule)    
 int currentMax = 0;
- if 
+    if 
         ::(currentThread != IDLE_THREAD) ->
             currentMax = partitions[currentPartition].threads[currentThread].timeSpacePerThread;
         ::else -> {
@@ -193,12 +193,13 @@ int currentMax = 0;
             //find next non-locked and non-sleeping thread              
             short nextThread = (currentThread + 1) % MAXTHREADS;
 
-            bit isNextFound = 0;
+            bool isNextFound = false;
             do ::(nextThread != currentThread) && !isNextFound -> { //do while we interate all threads
                 if 
                     ::(partitions[currentPartition].threads[nextThread].isLocked == 0) &&
                     (partitions[currentPartition].threads[nextThread].wakeUpTime == 0)  -> {
-                        isNextFound = 1; //we found a non-locked and non-sleeping thread
+                        //printf("thread %d is ok \n", nextThread); 
+                        isNextFound = true; //we found a non-locked and non-sleeping thread
                         break;
                     }
                     ::else -> skip;
@@ -216,7 +217,7 @@ int currentMax = 0;
                     currentThread = nextThread;
                 }
                 :: else -> {
-                    //we did not find a thread, but we need something to return - switch to a virtual one
+                    //we did not find a thread, but we need something to return - return fake (idle thread)
                     currentThread = IDLE_THREAD;
                     currentContext.IP = 0;
                     schedCurrentThreadRunTime = 0; //?
@@ -231,17 +232,17 @@ int currentMax = 0;
 
 inline elect_next_thread(needPeakAThread) {
     if 
-        :: (partitions[currentPartition].schedulingStrategy == sched_part_rms_strategy) -> sched_part_rms();
-        :: (partitions[currentPartition].schedulingStrategy == sched_part_rr_strategy)  -> sched_part_rr();
-        :: (partitions[currentPartition].schedulingStrategy == sched_part_llf_strategy) -> sched_part_llf();
-        :: (partitions[currentPartition].schedulingStrategy == sched_part_edf_strategy) -> sched_part_edf();
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_rms_strategy) -> sched_part_rms(needPeakAThread);
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_rr_strategy)  -> sched_part_rr(needPeakAThread);
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_llf_strategy) -> sched_part_llf(needPeakAThread);
+        :: (partitions[currentPartition].schedulingStrategy == sched_part_edf_strategy) -> sched_part_edf(needPeakAThread);
         :: else -> skip;
     fi
 }
 
 
 //Scheduler logic - it was declared as inline to call it from sleep
-inline schedDeterministicInstanceLogic() {
+inline schedDeterministicInstanceLogic(needPeakAThread) {
 
     //printf("sched in action...\n");
     //save current context
@@ -272,8 +273,6 @@ inline schedDeterministicInstanceLogic() {
         ::else -> break;
     od
 
-    bit needPeakAThread = 0;
-
     //check run time and select a next partition
     elect_next_partition(needPeakAThread);
 
@@ -291,6 +290,8 @@ inline schedDeterministicInstanceLogic() {
 
 
 proctype schedDeterministicInstance() {
+    bool needPeakAThread = false;
+
     do
     ::(realTime < MAXTIMESIM) -> {
         realTime++;         //increase time on tick
@@ -299,7 +300,7 @@ proctype schedDeterministicInstance() {
         if 
             ::(interruptsDisabled == 0) ->
             atomic {
-                schedDeterministicInstanceLogic(); //run scheduling logic
+                schedDeterministicInstanceLogic(needPeakAThread); //run scheduling logic
             }
         ::else ->skip;
         fi
@@ -456,9 +457,9 @@ inline sem_wait(sid) {
 
 inline sleep(sleepTime) {
     partitions[currentPartition].threads[currentThread].wakeUpTime = realTime + sleepTime;
-    //call the scheduler now
-    schedDeterministicInstanceLogic(); //buggy ?
-
+    //call the scheduler now with peak of new thread value = true
+    bool needPeakAThreadSleep = true;
+    schedDeterministicInstanceLogic(needPeakAThreadSleep); 
 }
 
 //check if we are in the correct partition

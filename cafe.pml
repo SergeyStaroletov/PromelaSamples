@@ -21,7 +21,7 @@ int buf;
 do
     ::{
     nextClient != 1; 
-    printf("HungryMan: Creating order to a Manager\n");
+    printf("HungryMan: Creating order to the Manager\n");
     gc_to_man ! 1;
     do
 	:: true ->{gc_to_man ! 1; gc_to_man ! 2; break}
@@ -40,7 +40,7 @@ count = 0;
 do
     :: {
     nextClient = 0;
-    printf("Manager: Waiting order from a customer\n");
+    printf("Manager: Waiting an order from the customer\n");
     gc_to_man ? buf;
     if 
     :: buf == 1 ->  {
@@ -55,7 +55,7 @@ do
     printf("Manager: receiving goods\n");
     goods_to_man?buf;
     goods_to_man?buf;
-    printf("Manager: returning result to customer\n ")
+    printf("Manager: returning result to the customer\n ")
     man_to_gc ! 1;
     nextClient = 1;
     count++;
@@ -67,7 +67,7 @@ active proctype Cook () {
 int buf;
 do
 :: {
-    printf("Cook: Waiting for a request from Manager\n");
+    printf("Cook: Waiting for a request from the Manager\n");
     man_to_cook? buf;
     if 
     ::buf ==1 -> 
@@ -101,9 +101,9 @@ active proctype Kvass () {
 int buf;
 do 
 :: {
-    printf("Kvass: receiving request from cook\n");
+    printf("Kvass: receiving request from the Cook\n");
     cook_to_kvass? buf;
-    printf("Kvass: sending me to Manager\n");
+    printf("Kvass: sending me to the Manager\n");
     goods_to_man ! 2;
 } 
 od

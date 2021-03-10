@@ -29,7 +29,6 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
       i = P1Degree - 1;
       do
         ::(i >= 0) -> {
-          printf("%d\n", i);
           setBit(R, i, (getBit(P1, i) + getBit(P2, i)) % 2);
           i = i - 1;
         }
@@ -96,7 +95,7 @@ inline GF2Multiplication(RDegree, P1Degree,P2Degree) {
       int j = P2Degree - 1;
       do
         ::(j >= 0) -> {
-          setBit(R, i + j, (getBit(R, i + j) + getBit(P1, i) * getBit(P2, j)) % 2);
+          setBit(R, (i + j), (getBit(R, (i + j)) + getBit(P1, i) * getBit(P2, j)) % 2);
           j = j - 1;
         }
         ::else -> break
@@ -129,6 +128,7 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
       //check nul
       if 
         ::(P2Degree == 1 && getBit(P2, P2Degree - 1) == 0) -> {
+            printf("we 0 ");
             result = false;
             break
         }
@@ -213,17 +213,65 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
 
 
 
-active proctype main() {
+active proctype tests() {
 
   int p1deg = 10;
   int p2deg = 10; 
   int rdeg = 0;
   int remdeg = 0;
   int res = 0;
-  setBit(P1, 10, 1);
-  print_telegram_part (P1, 100);
-
+  setBit(P1, 0, 0);
+  setBit(P1, 1, 1);
+  setBit(P1, 2, 0);
+  setBit(P1, 3, 1);
+  p1deg = 4;
+  setBit(P2, 0, 0);
+  setBit(P2, 1, 1);
+  setBit(P2, 2, 0);
+  setBit(P2, 3, 0);
+  p2deg = 4;
+  printf("addition\n")
   GF2Addition(rdeg, p1deg, p2deg);
+  print_telegram_part (R, rdeg);
+  printf("\n");
+
+  setBit(P1, 0, 1);
+  setBit(P1, 1, 0);
+  setBit(P1, 2, 1);
+  setBit(P1, 3, 1);
+  p1deg = 4;
+  setBit(P2, 0, 1);
+  setBit(P2, 1, 1);
+  setBit(P2, 2, 0);
+  setBit(P2, 3, 1);
+  p2deg = 4;
+  printf("mult\n")
   GF2Multiplication(rdeg, p1deg, p2deg);
+  print_telegram_part (R, rdeg);
+  printf("\n");
+
+  setBit(P1, 0, 1);
+  setBit(P1, 1, 0);
+  setBit(P1, 2, 0);
+  setBit(P1, 3, 1);
+  setBit(P1, 4, 1);
+  setBit(P1, 5, 0);
+  setBit(P1, 6, 0);
+  setBit(P1, 7, 1);
+  setBit(P1, 8, 1);
+  p1deg = 9;
+  setBit(P2, 0, 1);
+  setBit(P2, 1, 1);
+  setBit(P2, 2, 0);
+  setBit(P2, 3, 1);
+  setBit(P2, 4, 0);
+  setBit(P2, 5, 1);
+  p2deg = 6;
+  printf("div\n");
   GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
+  printf("rez\n");
+  print_telegram_part (R, rdeg);
+  printf("\nrem\n");
+  print_telegram_part (RemResult, remdeg);
+  printf("\n");
 }

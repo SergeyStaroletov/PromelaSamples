@@ -112,19 +112,14 @@ inline GF2Multiplication(RDegree, P1Degree,P2Degree) {
 
 inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) { 
   int i;
-
   do //loop to use breaks as returns
     ::true -> {
-
       for (i : 0 .. (P1Degree / 8 + 1)) {
         RemResult[i] = P1[i];
       }    
-    
       int rem_degree = P1Degree;
       int q_degree = P1Degree - P2Degree + 1;
-
       //find first not_null bit
-
       do 
         ::((P2Degree > 0) && (getBit(P2, P2Degree - 1) == 0)) -> {
           P2Degree = P2Degree - 1;
@@ -178,7 +173,6 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
         }
         ::else -> skip;
       fi
-
       for (i : 0 .. q_degree - 1) {
         int k =  getBit(RemResult, rem_degree - i - 1) / getBit(P2, P2Degree - 1);
         setBit(R, q_degree - i - 1, k);
@@ -206,7 +200,16 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
   od
 }
 
-
+#define print_telegram_part(res, res_deg) {\
+    int i = res_deg - 1;\
+    do \
+      ::(i >= 0) -> { \
+        printf("%d", getBit(res, i)); \
+        i = i - 1; \
+      }\
+      ::else -> break\
+    od\
+  }
 
 
 
@@ -217,9 +220,10 @@ active proctype main() {
   int rdeg = 0;
   int remdeg = 0;
   int res = 0;
+  setBit(P1, 10, 1);
+  print_telegram_part (P1, 100);
 
   GF2Addition(rdeg, p1deg, p2deg);
   GF2Multiplication(rdeg, p1deg, p2deg);
   GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
-
 }

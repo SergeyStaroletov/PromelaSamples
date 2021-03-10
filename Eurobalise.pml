@@ -211,6 +211,54 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
     od\
   }
 
+  #define print_telegram_full(res, res_len) {\
+    int i = res_len - 1;\
+    do\
+      ::(i >= 110) -> {\
+         printf("%d", getBit(res, i));\
+        i = i - 1;\
+      }\
+      ::else -> break\
+    od;\
+    printf(":");\
+    i = 109;\
+    do\
+      ::(i >= 107) -> {\
+        printf("%d", getBit(res, i));\
+        i = i - 1;\
+      }\
+      ::else -> break;\
+    od;\
+    printf(":");\
+    i = 106;\
+    do\
+      ::(i >= 95) -> {\
+        printf("%d", getBit(res, i));\
+        i = i - 1;\
+      }\
+      ::else -> break;\
+    od;\
+    printf(":");\
+    i = 94;\
+    do\
+      ::(i >= 85) -> {\
+        printf("%d", getBit(res, i));\
+        i = i - 1;\
+      }\
+      ::else -> break;\
+    od;\
+    printf(":");\
+    i = 84;\
+    do\
+      ::(i >= 0) -> {\
+        printf("%d", getBit(res, i));\
+        i = i - 1;\
+      }\
+      ::else -> break;\
+    od; \
+    printf("\n");\
+}
+
 
 
 active proctype tests() {
@@ -220,6 +268,8 @@ active proctype tests() {
   int rdeg = 0;
   int remdeg = 0;
   int res = 0;
+
+  print_telegram_full(P1, 200);
   setBit(P1, 0, 0);
   setBit(P1, 1, 1);
   setBit(P1, 2, 0);

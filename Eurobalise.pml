@@ -125,6 +125,8 @@ byte P1[MAXPOL];
 byte P2[MAXPOL];
 byte RemResult[MAXPOL];
 
+int i; //global iterator, do not use nesting
+
 //polinom lib
 inline GF2Addition(RDegree, P1Degree, P2Degree) {
   int max_degree = P1Degree;
@@ -132,7 +134,6 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
     ::(P2Degree > P1Degree) -> max_degree = P1Degree
     ::else -> skip
   fi
-  int i;
   for (i : 0 .. (max_degree / 8 + 1)) {
     R[i] = 0;
   }
@@ -195,9 +196,8 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
 }
 
 
-inline GF2Multiplication(RDegree, P1Degree,P2Degree) {
+inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
   int max = P1Degree + P2Degree;
-  int i;
   for (i : 0 .. (max / 8 + 1)) {
     R[i] = 0;
   }
@@ -221,8 +221,7 @@ inline GF2Multiplication(RDegree, P1Degree,P2Degree) {
 
 
 
-inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) { 
-  int i;
+inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, rez) { 
   do //loop to use breaks as returns
     ::true -> {
       for (i : 0 .. (P1Degree / 8 + 1)) {
@@ -241,7 +240,7 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
       if 
         ::(P2Degree == 1 && getBit(P2, P2Degree - 1) == 0) -> {
             printf("we 0 ");
-            result = false;
+            rez = false;
             break
         }
         ::else -> skip
@@ -253,7 +252,7 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
           R[0] = 0;
           RDegree = 1;
           RemResultDegree = rem_degree;
-          result = true;
+          rez = true;
           break
         }
         ::else -> skip;
@@ -276,7 +275,7 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
             ::low -> {
               R[0] = 0;
               RemResultDegree = rem_degree;
-              result = true;
+              rez = true;
               break
             }
             ::else -> skip;
@@ -285,13 +284,13 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
         ::else -> skip;
       fi
       for (i : 0 .. q_degree - 1) {
-        int k =  getBit(RemResult, rem_degree - i - 1) / getBit(P2, P2Degree - 1);
-        setBit(R, q_degree - i - 1, k);
+        int kk =  getBit(RemResult, rem_degree - i - 1) / getBit(P2, P2Degree - 1);
+        setBit(R, q_degree - i - 1, kk);
         int j;
         for (j : 0 .. P2Degree - 1)
         {
             setBit(RemResult, rem_degree - i - j - 1,
-                   (getBit(RemResult, rem_degree - i - j - 1) + k * getBit(P2, P2Degree - j - 1)) % 2); 
+                   (getBit(RemResult, rem_degree - i - j - 1) + kk * getBit(P2, P2Degree - j - 1)) % 2); 
         }
       }
       //correct leading zeros
@@ -305,73 +304,70 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, result) {
         ::else -> break
       od
       RemResultDegree = rem_degree;
-      result = true;
+      rez = true;
       break;    
     }
   od
 }
 
 #define print_telegram_part(res, res_deg) {\
-    int i = res_deg - 1;\
+    int mi = res_deg - 1;\
     do \
-      ::(i >= 0) -> { \
-        printf("%d", getBit(res, i)); \
-        i = i - 1; \
+      ::(mi >= 0) -> { \
+        printf("%d", getBit(res, mi)); \
+        mi = mi - 1; \
       }\
       ::else -> break\
     od\
   }
 
 #define print_telegram_full(res, res_len) {\
-    int i = res_len - 1;\
+    int mmi = res_len - 1;\
     do\
-      ::(i >= 110) -> {\
-         printf("%d", getBit(res, i));\
-        i = i - 1;\
+      ::(mmi >= 110) -> {\
+         printf("%d", getBit(res, mmi));\
+        mmi = mmi - 1;\
       }\
       ::else -> break\
     od;\
     printf(":");\
-    i = 109;\
+    mmi = 109;\
     do\
-      ::(i >= 107) -> {\
-        printf("%d", getBit(res, i));\
-        i = i - 1;\
+      ::(mmi >= 107) -> {\
+        printf("%d", getBit(res, mmi));\
+        mmi = mmi - 1;\
       }\
       ::else -> break;\
     od;\
     printf(":");\
-    i = 106;\
+    mmi = 106;\
     do\
-      ::(i >= 95) -> {\
-        printf("%d", getBit(res, i));\
-        i = i - 1;\
+      ::(mmi >= 95) -> {\
+        printf("%d", getBit(res, mmi));\
+        mmi = mmi - 1;\
       }\
       ::else -> break;\
     od;\
     printf(":");\
-    i = 94;\
+    mmi = 94;\
     do\
-      ::(i >= 85) -> {\
-        printf("%d", getBit(res, i));\
-        i = i - 1;\
+      ::(mmi >= 85) -> {\
+        printf("%d", getBit(res, mmi));\
+        mmi = mmi - 1;\
       }\
       ::else -> break;\
     od;\
     printf(":");\
-    i = 84;\
+    mmi = 84;\
     do\
-      ::(i >= 0) -> {\
-        printf("%d", getBit(res, i));\
-        i = i - 1;\
+      ::(mmi >= 0) -> {\
+        printf("%d", getBit(res, mmi));\
+        mmi = mmi - 1;\
       }\
       ::else -> break;\
     od; \
     printf("\n");\
 }
-
-byte result[MAXPOL];
-byte from[MAXPOL];
 
 //macro to iterate over bits
 int currentBitReq = 0;
@@ -391,37 +387,40 @@ int currentBit = 0;
   res = ret;\
 }
 
+//result vector
+byte result[MAXPOL];
+//source data vector
+byte from[MAXPOL] = {1,2,3,4,5,5,4,3,2,1};
+bool isOk;
 
 
 inline encodeOne(resultLen, originalLen) {
-
   bool ok = false;
   //loop through all the bits of 2^12 for sb
   short sb_state = 2001;
   //loop through all the bits of 2^10 for esb
   short esb_state = 99;
   {
-    int m = (resultLen == LEN_LONG) ? 830 : 210;
+    int m;
+    if 
+      ::(resultLen == LEN_LONG) -> m = 830;
+      ::else -> m = 210
+    fi
     int k = m / 10;
     short U[83];
-
-    int i = 0;
+    //int i = 0;
     for (i : 0 .. (resultLen / 8 + 1)) {
-      result = 0;
+      result[i] = 0;
     }
-
     for (i : 0 .. originalLen) {
-      result = from;
+      result[i] = from[i];
     }
-
     printf("original:\n");
     print_telegram_part(result, resultLen);
-
     //for iteration
     currentBitReq = 0;
     currentNumber = 0;
     currentBit = 0;
-
     //collect k 10-bit words
     int w;
     for (w : 0 .. k) {
@@ -435,16 +434,13 @@ inline encodeOne(resultLen, originalLen) {
       }
       U[w] = word;
     }
-
     //change U[k];
     short uk = 0;
     for (i : 0 .. k) {
       uk = (uk + U[i]) % 1024;
     }
     U[k - 1] = uk;
-
     printf("\nU:\n");
-
     i = k - 1;
     do
       ::(i >= 0) -> {
@@ -458,23 +454,18 @@ inline encodeOne(resultLen, originalLen) {
       ::else -> break;
     od
     printf("\n");
-
     //now form some result bits
-
     //extra shaping bits (esb)
-
     int ESB = esb_state;
     for (i : 85 .. 94) {
       int bitt = (ESB) & 1;
       setBit(result, i, bitt);
       ESB = ESB  >> 1;
     }
-
     //control bits (cb)
     setBit(result, 109, 0);
     setBit(result, 108, 0);
     setBit(result, 107, 1);
-
     //12 scrambling bits
     printf("12 scrambling bits\n");
     int B = 0;
@@ -484,42 +475,39 @@ inline encodeOne(resultLen, originalLen) {
       setBit(result, i, bitt);
       SB = SB >> 1;
     }
-
     B = sb_state;
     printf("B = %d\n", B);
-    unsigned int S = (2801775573 * B) % 4294967296;
+    int S = (2801775573 * B) % 4294967296; //TODO check usingned
     printf("S = %u\n", S);
-
     //scrambling
     //https://ru.wikipedia.org/wiki/%D0%A0%D0%B5%D0%B3%D0%B8%D1%81%D1%82%D1%80_%D1%81%D0%B4%D0%B2%D0%B8%D0%B3%D0%B0_%D1%81_%D0%BB%D0%B8%D0%BD%D0%B5%D0%B9%D0%BD%D0%BE%D0%B9_%D0%BE%D0%B1%D1%80%D0%B0%D1%82%D0%BD%D0%BE%D0%B9_%D1%81%D0%B2%D1%8F%D0%B7%D1%8C%D1%8E
     //https://stackoverflow.com/questions/16891655/galois-lfsr-explanation-of-code
     int u = 0;
-
-    unsigned int shift = S;
+    int shift = S; //should BE UNSIGNED 
     //h = 11110101000000000000000000000001 = F5000001
-    unsigned int toggle =  0xF5000001;
+    int toggle =  4110417921; //0xF5000001; //TODO: unsigned check
     for (i : 0 .. k - 1) {
       int bb;
-        for (bb : 0 .. 9) {
-            //m-1 clocks
-            byte temp[2];
-            temp[0] = U[i];
-            temp[1] = U[i+1];
-            // get the next user bit
-            byte bitt = getBit(temp, bb);
-            //most significant bit
-            byte msb = (shift >> 31) & 1; //????
-            //output = input xor msb(shift)
-            setBit(temp, bb, (bitt ^ msb));
-            U[i] = temp[0];
-            U[i+1] = temp[1];
-            //shift
-            shift = shift << 1;
-            //apply h
-            if 
-              ::(bitt>0) -> shift = shift ^ toggle;
-              ::else -> skip
-            fi
+      for (bb : 0 .. 9) {
+        //m-1 clocks
+        byte temp[2];
+        temp[0] = U[i];
+        temp[1] = U[i+1];
+        // get the next user bit
+        byte bitt = getBit(temp, bb);
+        //most significant bit
+        byte msb = (shift >> 31) & 1; //????
+        //output = input xor msb(shift)
+        setBit(temp, bb, (bitt ^ msb));
+        U[i] = temp[0];
+        U[i+1] = temp[1];
+        //shift
+        shift = shift << 1;
+        //apply h
+        if 
+          ::(bitt > 0) -> shift = shift ^ toggle;
+          ::else -> skip
+        fi
       }
     }
     printf("\n After scrambling:\n");
@@ -534,12 +522,10 @@ inline encodeOne(resultLen, originalLen) {
       }
       ::else -> break;
     od
-
     //substitution
     for (i : 0 .. k - 1) {
       U[i] = words11[U[i]];
     }
-
     printf("\nU11:\n");
     i = k - 1;
     do
@@ -552,13 +538,11 @@ inline encodeOne(resultLen, originalLen) {
       }
       ::else -> break;
     od
-
-
     //from bit 110 there is the user data, just set in from the U array
       int bit_in_result = 110;
         for (i : 0 .. k - 1) {
           int bb;
-          for (bb : 0 .. 10;) {
+          for (bb : 0 .. 10) {
             short printMe[2];
             printMe[0] = U[i];
             printMe[1] = U[i + 1];
@@ -567,76 +551,105 @@ inline encodeOne(resultLen, originalLen) {
             bit_in_result = bit_in_result + 1;
           }
       }
-
-            //calculating checksum
-
-            //fl = 11011011111 deg 10
-            //gl = 101110001000 01110011100110100111101000101110 11010101001000111011101000010011 deg 75
-            byte fl[2] = {223, 6};//{0x6DF};
-            byte gl[10] = {19,186,35,213, 46,122,154,115, 136,11} ;//{0xD5 23 BA 13, 0x73 9A 7A 2E, 0xB 88}; /?????
-
-            //fs = 10110101011
-            //gs = 100111110111 10010000110000101111111011110111 11001010010010100011110001001011 deg 75
-            byte fs[2] = {171, 5};// {0x5AB};
-            byte gs[10] = {75,60,74,202, 247,254,194,144, 247,9}; //{0xCA 4A 3C 4B, 0x90 C2 FE F7, 0x9F7};
-
-            int fg_degree;
-            int rem_deg;
-            int div_deg;
-            int crc_deg;
-
-            //for division we need an array with continous data, for the first version-just copy it
-            byte data_to_sign[MAXPOL];
-            int bb = 0;
-            for (i : 85 .. resultLen - 1) {
-                setBit(data_to_sign, bb, getBit(result, i));
-                bb++;
-            }
-
-
-            // crc = reminder(all_data ploynom f * g ) + g
-            if 
-              ::(resultLen == LEN_LONG) -> {
-                for (i : 0 .. 1) {
-                  P1[i] = fl[i];
-                }
-                for (i : 0 .. 75/8+1) {
-                  P2[i] = gl[i];
-                }
-
-                GF2Multiplication(fg_degree, 10, 75);
-
-                //TODO - finish promela from this
-                GF2Division(&div, &div_deg, &rem, &rem_deg, data_to_sign, 1023 - 85, fg, fg_degree);
-                GF2Addition(&crc, &crc_deg, rem, rem_deg, (byte *)gl, 75);
-              } 
-              ::else -> {
-                GF2Multiplication(&fg, &fg_degree, (byte *) fs, 10, (byte *)gs, 75);
-                GF2Division(&div, &div_deg, &rem, &rem_deg, data_to_sign, 403 - 85, fg, fg_degree);
-                GF2Addition(&crc, &crc_deg, rem, rem_deg, (byte *)gs, 75);
-              }
-
-
-            //set 0..84 bit in result to crc86
-            for (int i = 0; i <= 84; i++) setBit(result, i, getBit(crc, i));
-
-            //change to static arrays in future
-            delete[]crc;
-            delete[]div;
-            delete[]rem;
-            delete[]fg;
-
-            printf("\nresult telegram: \n");
-            print_telegram_full(result, resultLen);
-
-            ok = checkCandidate(result, resultLen);
-            //ok = true;
-            //if (ok) break;
+      //calculating checksum
+      //fl = 11011011111 deg 10
+      //gl = 101110001000 01110011100110100111101000101110 11010101001000111011101000010011 deg 75
+      byte fl[2] = {223, 6};//{0x6DF};
+      byte gl[10] = {19,186,35,213, 46,122,154,115, 136,11} ;//{0xD523BA13, 0x739A7A2E, 0xB88}; 
+      //fs = 10110101011
+      //gs = 100111110111 10010000110000101111111011110111 11001010010010100011110001001011 deg 75
+      byte fs[2] = {171, 5};// {0x5AB};
+      byte gs[10] = {75,60,74,202, 247,254,194,144, 247,9}; //{0xCA 4A 3C 4B, 0x90 C2 FE F7, 0x9F7};
+      int fg_degree;
+      int rem_deg;
+      int div_deg;
+      int crc_deg;
+      //for division we need an array with continous data, for the first version-just copy it
+      byte data_to_sign[MAXPOL];
+      int bb = 0;
+      for (i : 85 .. resultLen - 1) {
+          setBit(data_to_sign, bb, getBit(result, i));
+          bb++;
+      }
+      // crc = reminder(all_data ploynom f * g ) + g
+      if 
+        ::(resultLen == LEN_LONG) -> {
+          short data_size = 1023 - 85;
+          //prepare inputs
+          for (i : 0 .. 1) {
+            P1[i] = fl[i];
+          }
+          for (i : 0 .. (75 / 8 + 1)) {
+            P2[i] = gl[i];
+          }
+          //mult, result in R
+          GF2Multiplication(fg_degree, 10, 75);
+          //copy resut to P2
+          for (i : 0 .. (fg_degree / 8 + 1)) {
+            P2[i] = R[i];
+          }
+          //copy data to P1
+          for (i : 0 .. (data_size / 8 + 1)) {
+            P1[i] = data_to_sign[i];
+          }
+          //div and get the reminder
+          GF2Division(div_deg, rem_deg, data_size, fg_degree, isOk);
+          //copy result to P1
+          for (i : 0 .. (rem_deg / 8 + 1)) {
+            P1[i] = RemResult[i];
+          }
+          //copy gl to P2
+          for (i : 0 .. (75 / 8 + 1)) {
+            P2[i] = gl[i];
+          }
+          //add
+          GF2Addition(crc_deg, rem_deg, 75);
+          //result will we in R
+        } 
+        ::else -> {//LEN_SHORT
+          short data_size = 403 - 85;
+          //prepare inputs
+          for (i : 0 .. 1) {
+            P1[i] = fs[i];
+          }
+          for (i : 0 .. (75 / 8 + 1)) {
+            P2[i] = gs[i];
+          }
+          GF2Multiplication(fg_degree, 10, 75);
+          //copy resut to P2
+          for (i : 0 .. (fg_degree / 8 + 1)) {
+            P2[i] = R[i];
+          }
+          //copy data to P1
+          for (i : 0 .. (data_size / 8 + 1)) {
+            P1[i] = data_to_sign[i];
+          }
+          //div and get the reminder
+          GF2Division(div_deg, rem_deg, data_size, fg_degree, isOk);
+          //copy result to P1
+          for (i : 0 .. (rem_deg / 8 + 1)) {
+            P1[i] = RemResult[i];
+          }
+          //copy gs to P2
+          for (i : 0 .. (75 / 8 + 1)) {
+            P2[i] = gs[i];
+          }
+          //add
+          GF2Addition(crc_deg, rem_deg, 75);
+          //result will we in R
         }
-    return ok;
+      fi
+      //set 0..84 bit in result to crc86
+      for (i : 0 .. 84) {
+        setBit(result, i, getBit(R, i));
+      }
+      //change to static arrays in future
+      printf("\nresult telegram: \n");
+      print_telegram_full(result, resultLen);
+      //TODO
+      //ok = checkCandidate(result, resultLen);
+    }
 }
-
-
 
 
 
@@ -648,7 +661,6 @@ active proctype tests() {
   int rdeg = 0;
   int remdeg = 0;
   int res = 0;
-
   setBit(P1, 0, 0);
   setBit(P1, 1, 1);
   setBit(P1, 2, 0);
@@ -663,7 +675,7 @@ active proctype tests() {
   GF2Addition(rdeg, p1deg, p2deg);
   print_telegram_part (R, rdeg);
   printf("\n");
-
+  //http://www.sharetechnote.com/html/Handbook_Communication_GF2.html
   setBit(P1, 0, 1);
   setBit(P1, 1, 0);
   setBit(P1, 2, 1);
@@ -703,4 +715,6 @@ active proctype tests() {
   printf("\nrem\n");
   print_telegram_part (RemResult, remdeg);
   printf("\n");
+
+  //encodeOne(LEN_LONG, 10);
 }

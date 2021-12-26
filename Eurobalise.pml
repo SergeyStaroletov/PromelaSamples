@@ -129,9 +129,10 @@ int i; //global iterator, do not use nesting
 
 //polinom lib
 inline GF2Addition(RDegree, P1Degree, P2Degree) {
+  printf("add %d + %d \n", P1Degree, P2Degree);
   int max_degree = P1Degree;
   if 
-    ::(P2Degree > P1Degree) -> max_degree = P1Degree
+    ::(P2Degree > P1Degree) -> max_degree = P2Degree
     ::else -> skip
   fi
   for (i : 0 .. (max_degree / 8 + 1)) {
@@ -197,8 +198,9 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
 
 
 inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
-  int mydeg = P1Degree + P2Degree;
-  for (i : 0 .. (mydeg / 8 + 1)) {
+  printf("mult deg %d x %d\n", P1Degree, P2Degree);
+  int mydeg = P1Degree + P2Degree + 1;
+  for (i : 0 .. MAXPOL-1) {
     R[i] = 0;
   }
   i = P1Degree - 1;
@@ -217,11 +219,12 @@ inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
     ::else -> break
   od  
   //correct resulting degree
+  int deg2 = mydeg - 1;
   do
-    ::(mydeg > 0)&&(getBit(R, mydeg-1) == 0) -> mydeg = mydeg-1;
+    ::(deg2 > 0)&&(getBit(R, deg2) == 0) -> deg2 = deg2-1;
     ::else->break;
   od
-  RDegree = mydeg;
+  RDegree = deg2 + 1 ;
 }
 
 
@@ -313,6 +316,19 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, rez) {
       break;    
     }
   od
+     int  q_degree = RDegree;
+      do 
+        ::(q_degree > 0 && getBit(R, q_degree - 1) == 0) -> q_degree--;
+        ::else -> break
+      od
+      RDegree = q_degree;
+    int rem_degree = RemResultDegree;
+      do 
+        ::(rem_degree > 0 && getBit(RemResult, rem_degree - 1) == 0) -> rem_degree--;
+        ::else -> break
+      od
+      RemResultDegree = rem_degree;
+  
 }
 
 #define print_telegram_part(res, res_deg) {\
@@ -831,9 +847,9 @@ int iter;
               ::else->skip; 
             fi
           //check using getbit
-          for (iter : 0 .. rdeg / 8 + 1) {
+          for (iter : 0 .. rdeg-1 ) {
             if 
-              :: (R[iter] != ideal[iter]) -> {
+              :: getBit(R, iter) != getBit(ideal,iter) -> {
                 polyGood = false;
                 printf ("bug in iter %d!\n", iter);
               }

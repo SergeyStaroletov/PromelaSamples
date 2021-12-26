@@ -197,8 +197,8 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
 
 
 inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
-  int max = P1Degree + P2Degree;
-  for (i : 0 .. (max / 8 + 1)) {
+  int mydeg = P1Degree + P2Degree;
+  for (i : 0 .. (mydeg / 8 + 1)) {
     R[i] = 0;
   }
   i = P1Degree - 1;
@@ -216,7 +216,12 @@ inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
     }
     ::else -> break
   od  
-  RDegree = max;
+  //correct resulting degree
+  do
+    ::(mydeg > 0)&&(getBit(R, mydeg-1) == 0) -> mydeg = mydeg-1;
+    ::else->break;
+  od
+  RDegree = mydeg;
 }
 
 
@@ -746,8 +751,8 @@ int iter;
     ::true -> setBit(P2, idx, 1);
     ::true -> {
       //guarantee the degrees
-      setBit(P1, p1deg, 1); 
-      setBit(P2, p2deg, 1);
+      setBit(P1, p1deg-1, 1); 
+      setBit(P2, p2deg-1, 1);
       //save P1 P2
       for (iter : 0 .. p1deg / 8 + 1) {
         P1save[iter] = P1[iter];
@@ -758,9 +763,23 @@ int iter;
       }
       p2degsave = p2deg;
 
-      printf("Go P1 %d P2 %d...\n", p1deg, p2deg);
+      printf("Go P1 %d / P2 %d...\n", p1deg, p2deg);
+      printf("P1=")
+      print_telegram_part(P1, p1deg);
+      printf("\n");
+      printf("P2=")
+      print_telegram_part(P2, p2deg);
+      printf("\n");
+
       //P1 / P2  => (R, RemResult)
       GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
+
+      printf("RDiv %d =", rdeg);
+      print_telegram_part(R, rdeg);
+      printf("\n");
+      printf("RemDiv %d =", remdeg);
+      print_telegram_part(RemResult, remdeg);
+      printf("\n");
       if 
         ::res -> {
           //RemResult + R*P2 = P1 
@@ -781,6 +800,10 @@ int iter;
           //r*p2
           GF2Multiplication(rdeg, p1deg, p2deg);
           
+          printf("Mult %d =", rdeg);
+          print_telegram_part(R, rdeg);
+          printf("\n");
+
           //load R into P1
           for (iter : 0 .. rdeg / 8 + 1) {
             P1[iter] = R[iter];
@@ -795,24 +818,32 @@ int iter;
           GF2Addition(rdeg, p1deg, p2deg);
 
           //test : ideal == R
+          printf("Conr %d =", rdeg);
+          print_telegram_part(R, rdeg);
+          printf("\n");
 
           if 
               :: (rdeg != idealdeg) -> {
                 polyGood = false;
                 printf ("wrong shape! %d vs %d\n",  rdeg, idealdeg);
+                break;
               }
               ::else->skip; 
             fi
-
+          //check using getbit
           for (iter : 0 .. rdeg / 8 + 1) {
             if 
               :: (R[iter] != ideal[iter]) -> {
                 polyGood = false;
-                printf ("bug!\n");
+                printf ("bug in iter %d!\n", iter);
               }
               ::else->skip; 
             fi
           }
+          if 
+            ::!polyGood -> break;
+            ::else -> skip
+          fi
         } 
         ::else -> skip;
       fi

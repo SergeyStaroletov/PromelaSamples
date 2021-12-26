@@ -1,5 +1,5 @@
 /*
-@brief Eurobalise encoder/decoder model
+@brief Eurobalise encoder/decoder model based on the official spec
 @author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
 @license GNU GPL
 */
@@ -652,9 +652,7 @@ inline encodeOne(resultLen, originalLen) {
 }
 
 
-
-
-active proctype tests() {
+proctype test_from_handbook() {
 
   int p1deg = 10;
   int p2deg = 10; 
@@ -718,3 +716,117 @@ active proctype tests() {
 
   //encodeOne(LEN_LONG, 10);
 }
+
+bool polyGood = true;
+
+active proctype verifypoly() {
+
+int mx = 80;
+int idx = mx;
+int p1deg = mx;
+int p2deg = mx;
+int deg, remdeg, rdeg;
+bool res; //div ok/div by 0
+byte P1save[MAXPOL];
+byte P2save[MAXPOL];
+int p1degsave;
+int p2degsave;
+int iter;
+  do
+    //change index
+    ::(idx > 0) -> idx--;
+    ::(idx < mx) -> idx++;
+    //change degrees
+    ::true -> p1deg = idx;
+    ::true -> p2deg = idx;
+    //change bit
+    ::true -> setBit(P1, idx, 0); 
+    ::true -> setBit(P2, idx, 0);
+    ::true -> setBit(P1, idx, 1);
+    ::true -> setBit(P2, idx, 1);
+    ::true -> {
+      //save P1 P2
+      for (iter : 0 .. p1deg / 8 + 1) {
+        P1save[iter] = P1[iter];
+      }
+      p1degsave = p1deg;
+      for (iter : 0 .. p1deg / 8 + 1) {
+        P2save[iter] = P2[iter];
+      }
+      p2degsave = p2deg;
+
+      //P1 / P2  => (R, RemResult)
+      GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
+      if 
+        ::res -> {
+          //RemResult + R*P2 = P1 
+
+          //save P1
+          byte ideal[MAXPOL];
+          for (iter : 0 .. p1deg / 8 + 1) {
+            ideal[iter] = P1[iter];
+          } 
+          byte idealdeg = p1deg;
+          //load R into P1
+          for (iter : 0 .. rdeg / 8 + 1) {
+            P1[iter] = R[iter];
+          }
+          p1deg = rdeg;
+          //p2 is already in p2
+
+          //r*p2
+          GF2Multiplication(rdeg, p1deg, p2deg);
+          
+          //load R into P1
+          for (iter : 0 .. rdeg / 8 + 1) {
+            P1[iter] = R[iter];
+          }
+          p1deg = rdeg;
+          //load Rem into P2
+          for (iter : 0 .. remdeg / 8 + 1) {
+            P2[iter] = RemResult[iter];
+          }
+          p2deg = remdeg
+          //r*p2+rem
+          GF2Addition(rdeg, p1deg, p2deg);
+
+          //test : ideal == R
+
+          if 
+              :: (rdeg != idealdeg) -> {
+                polyGood = false;
+                printf ("wrong shape! %d vs %d\n",  rdeg, idealdeg);
+              }
+              ::else->skip; 
+            fi
+
+          for (iter : 0 .. rdeg / 8 + 1) {
+            if 
+              :: (R[iter] != ideal[iter]) -> {
+                polyGood = false;
+                printf ("bug!\n");
+              }
+              ::else->skip; 
+            fi
+          }
+
+
+
+        } 
+        ::else -> skip;
+      fi
+      //restore
+      for (iter : 0 .. p1degsave / 8 + 1) {
+        P1[iter] = P1save[iter];
+      }
+      p1deg = p1degsave;
+      for (iter : 0 .. p1degsave / 8 + 1) {
+        P2[iter] = P2save[iter];
+      }
+      p2deg = p2degsave;
+    }
+  od
+
+}
+
+ltl foreverPoly {[] polyGood}

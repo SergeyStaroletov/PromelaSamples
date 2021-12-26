@@ -721,7 +721,7 @@ bool polyGood = true;
 
 active proctype verifypoly() {
 
-int mx = 80;
+int mx = 10;//80;
 int idx = mx;
 int p1deg = mx;
 int p2deg = mx;
@@ -745,16 +745,20 @@ int iter;
     ::true -> setBit(P1, idx, 1);
     ::true -> setBit(P2, idx, 1);
     ::true -> {
+      //guarantee the degrees
+      setBit(P1, p1deg, 1); 
+      setBit(P2, p2deg, 1);
       //save P1 P2
       for (iter : 0 .. p1deg / 8 + 1) {
         P1save[iter] = P1[iter];
       }
       p1degsave = p1deg;
-      for (iter : 0 .. p1deg / 8 + 1) {
+      for (iter : 0 .. p2deg / 8 + 1) {
         P2save[iter] = P2[iter];
       }
       p2degsave = p2deg;
 
+      printf("Go P1 %d P2 %d...\n", p1deg, p2deg);
       //P1 / P2  => (R, RemResult)
       GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
       if 
@@ -809,9 +813,6 @@ int iter;
               ::else->skip; 
             fi
           }
-
-
-
         } 
         ::else -> skip;
       fi

@@ -767,8 +767,14 @@ int iter;
     ::true -> setBit(P2, idx, 1);
     ::true -> {
       //guarantee the degrees
-      setBit(P1, p1deg-1, 1); 
-      setBit(P2, p2deg-1, 1);
+      if 
+        ::p1deg > 0 -> setBit(P1, p1deg - 1, 1); 
+        ::else -> skip;
+      fi
+      if 
+        ::p2deg > 0 -> setBit(P2, p2deg - 1, 1);
+        ::else -> skip;
+      fi
       //save P1 P2
       for (iter : 0 .. p1deg / 8 + 1) {
         P1save[iter] = P1[iter];

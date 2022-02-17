@@ -1,5 +1,6 @@
 /*
 @brief Eurobalise encoder/decoder model based on the official spec
+! Currently, the code with polinomials is under changing. Please update later.
 @author Sergey Staroletov serg_soft@mail.ru https://www.researchgate.net/profile/Sergey_Staroletov
 @license GNU GPL
 */
@@ -200,9 +201,17 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
 inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
   printf("mult deg %d x %d\n", P1Degree, P2Degree);
   int mydeg = P1Degree + P2Degree + 1;
-  for (i : 0 .. MAXPOL-1) {
+  //fill with 0 all the unused data in polynoms
+  for (i : 0 .. MAXPOL - 1) {
     R[i] = 0;
   }
+  for (i: P1Degree .. MAXPOL*8 - 1) {
+    setBit(P1, i, 0);
+  }
+  for (i: P2Degree .. MAXPOL*8 - 1) {
+    setBit(P2, i, 0);
+  }
+
   i = P1Degree - 1;
   do
     ::(i >= 0) -> {
@@ -316,6 +325,7 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, rez) {
       break;    
     }
   od
+  
      int  q_degree = RDegree;
       do 
         ::(q_degree > 0 && getBit(R, q_degree - 1) == 0) -> q_degree--;
@@ -765,7 +775,7 @@ int iter;
     ::true -> setBit(P2, idx, 0);
     ::true -> setBit(P1, idx, 1);
     ::true -> setBit(P2, idx, 1);
-    ::true -> {
+    ::p2deg > 0 && p1deg > p2deg -> {
       //guarantee the degrees
       if 
         ::p1deg > 0 -> setBit(P1, p1deg - 1, 1); 

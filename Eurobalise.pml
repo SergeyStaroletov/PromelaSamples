@@ -130,7 +130,7 @@ int i; //global iterator, do not use nesting
 
 //polinom lib
 inline GF2Addition(RDegree, P1Degree, P2Degree) {
-  printf("add %d + %d \n", P1Degree, P2Degree);
+  //printf("add %d + %d \n", P1Degree, P2Degree);
   int max_degree = P1Degree;
   if 
     ::(P2Degree > P1Degree) -> max_degree = P2Degree
@@ -199,7 +199,7 @@ inline GF2Addition(RDegree, P1Degree, P2Degree) {
 
 
 inline GF2Multiplication(RDegree, P1Degree, P2Degree) {
-  printf("mult deg %d x %d\n", P1Degree, P2Degree);
+  //printf("mult deg %d x %d\n", P1Degree, P2Degree);
   int mydeg = P1Degree + P2Degree + 1;
   //fill with 0 all the unused data in polynoms
   for (i : 0 .. MAXPOL - 1) {
@@ -325,7 +325,6 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, rez) {
       break;    
     }
   od
-  
      int  q_degree = RDegree;
       do 
         ::(q_degree > 0 && getBit(R, q_degree - 1) == 0) -> q_degree--;
@@ -338,8 +337,8 @@ inline GF2Division(RDegree, RemResultDegree, P1Degree, P2Degree, rez) {
         ::else -> break
       od
       RemResultDegree = rem_degree;
-  
 }
+
 
 #define print_telegram_part(res, res_deg) {\
     int mi = res_deg - 1;\
@@ -438,7 +437,7 @@ inline encodeOne(resultLen, originalLen) {
       ::else -> m = 210
     fi
     int k = m / 10;
-    short U[83];
+    short U[83+1];
     //int i = 0;
     for (i : 0 .. (resultLen / 8 + 1)) {
       result[i] = 0;
@@ -506,9 +505,10 @@ inline encodeOne(resultLen, originalLen) {
       setBit(result, i, bitt);
       SB = SB >> 1;
     }
-    B = sb_state;
+    B = sb_state; //TODO!!!
     printf("B = %d\n", B);
-    int S = (2801775573 * B) % 4294967296; //TODO check usingned
+    //int S = (2801775573 * B) % 4294967296; //TODO check unsingned
+    int S = 1420600293;
     printf("S = %u\n", S);
     //scrambling
     //https://ru.wikipedia.org/wiki/%D0%A0%D0%B5%D0%B3%D0%B8%D1%81%D1%82%D1%80_%D1%81%D0%B4%D0%B2%D0%B8%D0%B3%D0%B0_%D1%81_%D0%BB%D0%B8%D0%BD%D0%B5%D0%B9%D0%BD%D0%BE%D0%B9_%D0%BE%D0%B1%D1%80%D0%B0%D1%82%D0%BD%D0%BE%D0%B9_%D1%81%D0%B2%D1%8F%D0%B7%D1%8C%D1%8E
@@ -521,7 +521,7 @@ inline encodeOne(resultLen, originalLen) {
       int bb;
       for (bb : 0 .. 9) {
         //m-1 clocks
-        byte temp[2];
+        short temp[2];
         temp[0] = U[i];
         temp[1] = U[i+1];
         // get the next user bit
@@ -548,11 +548,13 @@ inline encodeOne(resultLen, originalLen) {
         short printMe[2];
         printMe[0] = U[i];
         printMe[1] = U[i + 1]; //0..9 bit = 2 byte 
-        print_telegram_part(printMe, 10);
-        printf (" ");
+        //print_telegram_part(printMe, 10);
+        //printf (" ");
+        i = i - 1;
       }
       ::else -> break;
     od
+    printf("\n substitution:\n");
     //substitution
     for (i : 0 .. k - 1) {
       U[i] = words11[U[i]];
@@ -564,8 +566,9 @@ inline encodeOne(resultLen, originalLen) {
         short printMe[2];
         printMe[0] = U[i];
         printMe[1] = U[i + 1]; //0..10 bit = 2 byte 
-        print_telegram_part(printMe, 11);
-        printf (" ");
+        //print_telegram_part(printMe, 11);
+        //printf (" ");
+        i = i - 1;
       }
       ::else -> break;
     od
@@ -643,7 +646,7 @@ inline encodeOne(resultLen, originalLen) {
           for (i : 0 .. 1) {
             P1[i] = fs[i];
           }
-          for (i : 0 .. (75 / 8 + 1)) {
+          for (i : 0 .. (75 / 8 + 1)-1) {//??
             P2[i] = gs[i];
           }
           GF2Multiplication(fg_degree, 10, 75);
@@ -662,7 +665,7 @@ inline encodeOne(resultLen, originalLen) {
             P1[i] = RemResult[i];
           }
           //copy gs to P2
-          for (i : 0 .. (75 / 8 + 1)) {
+          for (i : 0 .. (75 / 8 + 1)-1) {//??
             P2[i] = gs[i];
           }
           //add
@@ -674,7 +677,6 @@ inline encodeOne(resultLen, originalLen) {
       for (i : 0 .. 84) {
         setBit(result, i, getBit(R, i));
       }
-      //change to static arrays in future
       printf("\nresult telegram: \n");
       print_telegram_full(result, resultLen);
       //TODO
@@ -682,9 +684,8 @@ inline encodeOne(resultLen, originalLen) {
     }
 }
 
-
+//http://www.sharetechnote.com/html/Handbook_Communication_GF2.html
 proctype test_from_handbook() {
-
   int p1deg = 10;
   int p2deg = 10; 
   int rdeg = 0;
@@ -704,7 +705,6 @@ proctype test_from_handbook() {
   GF2Addition(rdeg, p1deg, p2deg);
   print_telegram_part (R, rdeg);
   printf("\n");
-  //http://www.sharetechnote.com/html/Handbook_Communication_GF2.html
   setBit(P1, 0, 1);
   setBit(P1, 1, 0);
   setBit(P1, 2, 1);
@@ -744,153 +744,160 @@ proctype test_from_handbook() {
   printf("\nrem\n");
   print_telegram_part (RemResult, remdeg);
   printf("\n");
-
-  //encodeOne(LEN_LONG, 10);
 }
 
 bool polyGood = true;
 
-active proctype verifypoly() {
+//active proctype verifypoly() {
+proctype verifypoly() {
+  int mx = 10;//80;
+  int idx = mx;
+  int p1deg = mx;
+  int p2deg = mx;
+  int deg, remdeg, rdeg;
+  bool res; //div ok/div by 0
+  byte P1save[MAXPOL];
+  byte P2save[MAXPOL];
+  int p1degsave;
+  int p2degsave;
+  int iter;
+    do
+      ::!polyGood -> break;
+      //change index
+      ::(idx > 0) -> idx--;
+      ::(idx < mx) -> idx++;
+      //change degrees
+      ::true -> p1deg = idx;
+      ::true -> p2deg = idx;
+      //change bit
+      ::true -> setBit(P1, idx, 0); 
+      ::true -> setBit(P2, idx, 0);
+      ::true -> setBit(P1, idx, 1);
+      ::true -> setBit(P2, idx, 1);
+      ::p2deg > 0 && p1deg > p2deg -> {
+        //guarantee the degrees
+        if 
+          ::p1deg > 0 -> setBit(P1, p1deg - 1, 1); 
+          ::else -> skip;
+        fi
+        if 
+          ::p2deg > 0 -> setBit(P2, p2deg - 1, 1);
+          ::else -> skip;
+        fi
+        //save P1 P2
+        for (iter : 0 .. p1deg / 8 + 1) {
+          P1save[iter] = P1[iter];
+        }
+        p1degsave = p1deg;
+        for (iter : 0 .. p2deg / 8 + 1) {
+          P2save[iter] = P2[iter];
+        }
+        p2degsave = p2deg;
 
-int mx = 10;//80;
-int idx = mx;
-int p1deg = mx;
-int p2deg = mx;
-int deg, remdeg, rdeg;
-bool res; //div ok/div by 0
-byte P1save[MAXPOL];
-byte P2save[MAXPOL];
-int p1degsave;
-int p2degsave;
-int iter;
-  do
-    //change index
-    ::(idx > 0) -> idx--;
-    ::(idx < mx) -> idx++;
-    //change degrees
-    ::true -> p1deg = idx;
-    ::true -> p2deg = idx;
-    //change bit
-    ::true -> setBit(P1, idx, 0); 
-    ::true -> setBit(P2, idx, 0);
-    ::true -> setBit(P1, idx, 1);
-    ::true -> setBit(P2, idx, 1);
-    ::p2deg > 0 && p1deg > p2deg -> {
-      //guarantee the degrees
-      if 
-        ::p1deg > 0 -> setBit(P1, p1deg - 1, 1); 
-        ::else -> skip;
-      fi
-      if 
-        ::p2deg > 0 -> setBit(P2, p2deg - 1, 1);
-        ::else -> skip;
-      fi
-      //save P1 P2
-      for (iter : 0 .. p1deg / 8 + 1) {
-        P1save[iter] = P1[iter];
-      }
-      p1degsave = p1deg;
-      for (iter : 0 .. p2deg / 8 + 1) {
-        P2save[iter] = P2[iter];
-      }
-      p2degsave = p2deg;
+        printf("Go P1 %d / P2 %d...\n", p1deg, p2deg);
+        printf("P1=")
+        print_telegram_part(P1, p1deg);
+        printf("\n");
+        printf("P2=")
+        print_telegram_part(P2, p2deg);
+        printf("\n");
 
-      printf("Go P1 %d / P2 %d...\n", p1deg, p2deg);
-      printf("P1=")
-      print_telegram_part(P1, p1deg);
-      printf("\n");
-      printf("P2=")
-      print_telegram_part(P2, p2deg);
-      printf("\n");
+        //P1 / P2  => (R, RemResult)
+        GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
 
-      //P1 / P2  => (R, RemResult)
-      GF2Division(rdeg, remdeg, p1deg, p2deg, res); 
+        printf("RDiv %d =", rdeg);
+        print_telegram_part(R, rdeg);
+        printf("\n");
+        printf("RemDiv %d =", remdeg);
+        print_telegram_part(RemResult, remdeg);
+        printf("\n");
+        if 
+          ::res -> {
+            //RemResult + R*P2 = P1 
 
-      printf("RDiv %d =", rdeg);
-      print_telegram_part(R, rdeg);
-      printf("\n");
-      printf("RemDiv %d =", remdeg);
-      print_telegram_part(RemResult, remdeg);
-      printf("\n");
-      if 
-        ::res -> {
-          //RemResult + R*P2 = P1 
+            //save P1
+            byte ideal[MAXPOL];
+            for (iter : 0 .. p1deg / 8 + 1) {
+              ideal[iter] = P1[iter];
+            } 
+            byte idealdeg = p1deg;
+            //load R into P1
+            for (iter : 0 .. rdeg / 8 + 1) {
+              P1[iter] = R[iter];
+            }
+            p1deg = rdeg;
+            //p2 is already in p2
 
-          //save P1
-          byte ideal[MAXPOL];
-          for (iter : 0 .. p1deg / 8 + 1) {
-            ideal[iter] = P1[iter];
-          } 
-          byte idealdeg = p1deg;
-          //load R into P1
-          for (iter : 0 .. rdeg / 8 + 1) {
-            P1[iter] = R[iter];
-          }
-          p1deg = rdeg;
-          //p2 is already in p2
+            //r*p2
+            GF2Multiplication(rdeg, p1deg, p2deg);
+            
+            printf("Mult %d =", rdeg);
+            print_telegram_part(R, rdeg);
+            printf("\n");
 
-          //r*p2
-          GF2Multiplication(rdeg, p1deg, p2deg);
-          
-          printf("Mult %d =", rdeg);
-          print_telegram_part(R, rdeg);
-          printf("\n");
+            //load R into P1
+            for (iter : 0 .. rdeg / 8 + 1) {
+              P1[iter] = R[iter];
+            }
+            p1deg = rdeg;
+            //load Rem into P2
+            for (iter : 0 .. remdeg / 8 + 1) {
+              P2[iter] = RemResult[iter];
+            }
+            p2deg = remdeg
+            //r*p2+rem
+            GF2Addition(rdeg, p1deg, p2deg);
 
-          //load R into P1
-          for (iter : 0 .. rdeg / 8 + 1) {
-            P1[iter] = R[iter];
-          }
-          p1deg = rdeg;
-          //load Rem into P2
-          for (iter : 0 .. remdeg / 8 + 1) {
-            P2[iter] = RemResult[iter];
-          }
-          p2deg = remdeg
-          //r*p2+rem
-          GF2Addition(rdeg, p1deg, p2deg);
+            //test : ideal == R
+            printf("Conr %d =", rdeg);
+            print_telegram_part(R, rdeg);
+            printf("\n");
 
-          //test : ideal == R
-          printf("Conr %d =", rdeg);
-          print_telegram_part(R, rdeg);
-          printf("\n");
-
-          if 
-              :: (rdeg != idealdeg) -> {
-                polyGood = false;
-                printf ("wrong shape! %d vs %d\n",  rdeg, idealdeg);
-                break;
-              }
-              ::else->skip; 
-            fi
-          //check using getbit
-          for (iter : 0 .. rdeg-1 ) {
             if 
-              :: getBit(R, iter) != getBit(ideal,iter) -> {
-                polyGood = false;
-                printf ("bug in iter %d!\n", iter);
-              }
-              ::else->skip; 
+                :: (rdeg != idealdeg) -> {
+                  polyGood = false;
+                  printf ("wrong shape! %d vs %d\n",  rdeg, idealdeg);
+                  break;
+                }
+                ::else->skip; 
+              fi
+            //check using getbit
+            for (iter : 0 .. rdeg-1 ) {
+              if 
+                :: getBit(R, iter) != getBit(ideal,iter) -> {
+                  polyGood = false;
+                  printf ("bug in iter %d!\n", iter);
+                }
+                ::else->skip; 
+              fi
+            }
+            if 
+              ::!polyGood -> break;
+              ::else -> skip
             fi
-          }
-          if 
-            ::!polyGood -> break;
-            ::else -> skip
-          fi
-        } 
-        ::else -> skip;
-      fi
-      //restore
-      for (iter : 0 .. p1degsave / 8 + 1) {
-        P1[iter] = P1save[iter];
+          } 
+          ::else -> skip;
+        fi
+        //restore
+        for (iter : 0 .. p1degsave / 8 + 1) {
+          P1[iter] = P1save[iter];
+        }
+        p1deg = p1degsave;
+        for (iter : 0 .. p1degsave / 8 + 1) {
+          P2[iter] = P2save[iter];
+        }
+        p2deg = p2degsave;
       }
-      p1deg = p1degsave;
-      for (iter : 0 .. p1degsave / 8 + 1) {
-        P2[iter] = P2save[iter];
-      }
-      p2deg = p2degsave;
-    }
-  od
-
+    od
 }
+
+
+active proctype main() {
+  int result_len = 9;
+  encodeOne(LEN_SHORT, result_len);
+}
+
+
+
 
 ltl foreverPoly {[] polyGood}

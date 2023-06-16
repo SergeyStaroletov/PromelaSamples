@@ -1,3 +1,6 @@
+//calculate the min using OpenCL and save ptx for it
+//(c) Sergey Staroletov
+
 #include <CL/cl.h>
 #include <locale.h>
 #include <stdio.h>
@@ -18,13 +21,13 @@ void printfinfo() {
     cl_uint platformCount;
     clGetPlatformIDs(0, NULL, &platformCount);
     cl_platform_id *platforms =
-        (cl_platform_id *)malloc(sizeof(cl_platform_id) * platformCount);
+            (cl_platform_id *)malloc(sizeof(cl_platform_id) * platformCount);
     clGetPlatformIDs(platformCount, platforms, NULL);
     for (int p = 0; p < platformCount; p++) {
         cl_uint deviceCount;
         clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, 0, NULL, &deviceCount);
         cl_device_id *devices =
-            (cl_device_id *)malloc(sizeof(cl_device_id) * deviceCount);
+                (cl_device_id *)malloc(sizeof(cl_device_id) * deviceCount);
         clGetDeviceIDs(platforms[p], CL_DEVICE_TYPE_ALL, deviceCount, devices,
                        NULL);
         for (int d = 0; d < deviceCount; d++) {
@@ -55,19 +58,18 @@ void printfinfo() {
     free(platforms);
 }
 
-//#define MAXSIZE 804864000
 #define MAXSIZE (256000000/4)
 
 
 void compute() {
-    FILE *fff;
+    FILE *csv_file;
 
     int *array = (int *)malloc(MAXSIZE * sizeof(int));
     for (int i = 0; i < MAXSIZE; i++) {
-        array[i] = 123 + rand() % 100000;
+        array[i] = 123 + rand() % 100000; //all > 123
     }
 
-    array[666666] = 64;
+    array[666666] = 64; //and one minimum
 
     cl_platform_id platform;
     cl_device_id device;
@@ -138,122 +140,111 @@ void compute() {
     kernel = clCreateKernel(program, "findMinValue2", &err);
 
     queue = clCreateCommandQueue(context, device, 0, NULL);
-    cl_mem clArray = clCreateBuffer(context, CL_MEM_READ_WRITE,
+    cl_mem my_cl_array = clCreateBuffer(context, CL_MEM_READ_WRITE,
                                     MAXSIZE * sizeof(int), NULL, NULL);
-    clEnqueueWriteBuffer(queue, clArray, CL_TRUE, 0, MAXSIZE * sizeof(int), array,
+    clEnqueueWriteBuffer(queue, my_cl_array, CL_TRUE, 0, MAXSIZE * sizeof(int), array,
                          0, NULL, NULL);
-    cl_mem clMins = clCreateBuffer(context, CL_MEM_READ_WRITE,
+    cl_mem my_cl_mins = clCreateBuffer(context, CL_MEM_READ_WRITE,
                                    units * sizeof(int), NULL, NULL);
-    int chunkSize = MAXSIZE / units;
-    cl_mem clChunkSize =
-        clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
-    clEnqueueWriteBuffer(queue, clChunkSize, CL_TRUE, 0, sizeof(int), &chunkSize,
-                         0, NULL, NULL);
-
+    /*int chunk_size = MAXSIZE / units;
+    cl_mem cl_chunk_size =
+            clCreateBuffer(context, CL_MEM_READ_WRITE, sizeof(int), NULL, NULL);
+    clEnqueueWriteBuffer(queue, cl_chunk_size, CL_TRUE, 0, sizeof(int), &chunk_size,
+                         0, NULL, NULL);*/
 
     double mid_gb = 0;
     double mid_time = 0;
 
     int C = 5; //count of re-runs
 
-    fff = fopen("out.csv", "w");
-    if (!fff) printf("no file!");
-    fprintf(fff, "Glob;SM;WG;TS;time;GB\n");
+    csv_file = fopen("out.csv", "w");
+    if (!csv_file) printf("no file!");
+    fprintf(csv_file, "Glob;SM;WG;TS;time;GB\n");
 
     printf("go\n");
-
 
 
     int SM = 10;
     int TS = 32;
     int WG = 128;
-//here is a point to organize a loop
-{
-    int TS_real = MAXSIZE / (SM * WG) * TS;
-    int WG_real = WG / TS;
 
-    mid_time = 0;
-    mid_gb= 0;
+    //here is a point to organize a loop
+    {
+        //we need to have TS = 32, 64, 128, etc, to coincide with Promela model sizes
+        int TS_real = MAXSIZE / (SM * WG) * TS;
+        int WG_real = WG / TS;
 
-    for (int t = 0; t < C; t++) {
+        mid_time = 0;
+        mid_gb= 0;
 
+        for (int t = 0; t < C; t++) {
 
-    size_t global_item_size = SM * WG_real;
-    size_t local_item_size = WG_real;
+            size_t global_item_size = SM * WG_real;
+            size_t local_item_size = WG_real;
 
+            clSetKernelArg(kernel, 0, sizeof(cl_mem), &my_cl_array) ;
+            clSetKernelArg(kernel, 1, sizeof(cl_mem), &my_cl_mins);
+            clSetKernelArg(kernel, 2, sizeof(cl_uint) * local_item_size, NULL);
+            clSetKernelArg(kernel, 3, sizeof(cl_uint), &TS_real);
+            //clSetKernelArg(kernel, 4, sizeof(cl_uint), &IC);
 
-    clSetKernelArg(kernel, 0, sizeof(cl_mem), &clArray) ;
-    clSetKernelArg(kernel, 1, sizeof(cl_mem), &clMins);
-    clSetKernelArg(kernel, 2, sizeof(cl_uint) * local_item_size, NULL);
-    clSetKernelArg(kernel, 3, sizeof(cl_uint), &TS_real);
-    //clSetKernelArg(kernel, 4, sizeof(cl_uint), &IC);
+            struct timeval initial_time, final_time;
+            gettimeofday(&initial_time, NULL);
 
+            clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_item_size,
+                                   &local_item_size, 0, NULL, NULL);
 
-    struct timeval initial_time, final_time;
-    gettimeofday(&initial_time, NULL);
+            clEnqueueReadBuffer(queue, my_cl_mins, CL_TRUE, 0, units * sizeof(int), mins, 0,
+                                NULL, NULL);
 
+            gettimeofday(&final_time, NULL);
 
-    clEnqueueNDRangeKernel(queue, kernel, 1, NULL, &global_item_size,
-                           &local_item_size, 0, NULL, NULL);
+            long long exec_time = ((long long)final_time.tv_sec * 1000000 + final_time.tv_usec) -
+                    ((long long)initial_time.tv_sec * 1000000 + initial_time.tv_usec);
 
+            printf("\nExecution time was %llu microseconds\n", exec_time);
 
-    clEnqueueReadBuffer(queue, clMins, CL_TRUE, 0, units * sizeof(int), mins, 0,
-                        NULL, NULL);
+            float bandwidth = 1e-9*(float)(MAXSIZE*sizeof(cl_uint)) /
+                    ((float)exec_time/1e6);
 
-    gettimeofday(&final_time, NULL);
+            printf("Memory bandwidth %.2f GB/sec\n", bandwidth);
 
+            mid_time += exec_time;
+            mid_gb += bandwidth;
 
-    long long exec_time = ((long long)final_time.tv_sec * 1000000 + final_time.tv_usec) -
-                          ((long long)initial_time.tv_sec * 1000000 + initial_time.tv_usec);
+            int min = INT32_MAX;
+            for (int i = 0; i < units; i++) {
+                //  printf("analisyng min[%d] = %d\n", i, mins[i]);
+                if (mins[i] < min) min = mins[i];
+            }
+            printf("Total min = %d\n", min);
 
-    printf("\nExecution time was %llu microseconds\n", exec_time);
+            clEnqueueReadBuffer(queue, my_cl_array, CL_TRUE, 0, MAXSIZE * sizeof(int), array,
+                                0, NULL, NULL);
 
-    float bandwidth = 1e-9*(float)(MAXSIZE*sizeof(cl_uint)) /
-                      ((float)exec_time/1e6);
+            clFlush(queue);
+        }
 
-    printf("Memory bandwidth %.2f GB/sec\n", bandwidth);
+        printf("Global size = %d; SM = %d; WG = %d; WG real= %d; TS = %d; TS real = %d; test(MAXSIZE) = %d(%d); time = %lf; gb = %lf \n\n", (SM * WG), SM, WG, WG_real, TS, TS_real, (TS_real * SM * WG_real), MAXSIZE,  mid_time / (C*1000), mid_gb / C);
 
+        fprintf(csv_file, "%d;%d;%d;%d;%lf;%lf\n", (SM * WG), SM, WG, TS,  mid_time / (C * 1000), mid_gb / C);
 
-    mid_time += exec_time;
-    mid_gb += bandwidth;
+    } //loop
 
-
-    int min = INT32_MAX;
-    for (int i = 0; i < units; i++) {
-     //  printf("analisyng min[%d] = %d\n", i, mins[i]);
-        if (mins[i] < min) min = mins[i];
-    }
-    printf("Total min = %d\n", min);
-
-
-    clEnqueueReadBuffer(queue, clArray, CL_TRUE, 0, MAXSIZE * sizeof(int), array,
-                         0, NULL, NULL);
-
-
-    clFlush(queue);
-
-    }
-
-
-    printf("Global size = %d; SM = %d; WG = %d; WG real= %d; TS = %d; TS real = %d; test(MAXSIZE) = %d(%d); time = %lf; gb = %lf \n\n", (SM * WG), SM, WG, WG_real, TS, TS_real, (TS_real * SM * WG_real), MAXSIZE,  mid_time / (C*1000), mid_gb / C);
-    
-    fprintf(fff, "%d;%d;%d;%d;%lf;%lf\n", (SM * WG), SM, WG, TS,  mid_time / (C * 1000), mid_gb / C);
-    
-}//loop
-
-    fclose(fff);
+    fclose(csv_file);
 
     clFinish(queue);
     clReleaseKernel(kernel);
     clReleaseProgram(program);
-    clReleaseMemObject(clArray);
-    clReleaseMemObject(clMins);
+    clReleaseMemObject(my_cl_array);
+    clReleaseMemObject(my_cl_mins);
     clReleaseCommandQueue(queue);
     clReleaseContext(context);
     return;
 }
 
 int main(int argc, const char *argv[]) {
+
     printfinfo();
 
     compute();

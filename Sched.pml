@@ -2,6 +2,7 @@
 //-----------------------------------------------------------------
 //First OS in Promela:)
 //moreover, it is a partitioned OS:)
+//Presented at OS Day (in Russian): https://youtu.be/plMOL1LLecY 
 //(c) Sergey Staroletov
 //-----------------------------------------------------------------
 

@@ -1,0 +1,9 @@
+SPIN 2026 Artifact
+Copyright (c) 2025 Sergey Staroletov
+
+This license allows the Artifact Evaluation Committee (AEC) to evaluate the
+artifact according to the TACAS 26 evaluation criteria, including running,
+analyzing, and documenting the artifact for review purposes.
+
+For academic use.
+

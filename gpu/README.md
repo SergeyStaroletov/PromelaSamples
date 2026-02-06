@@ -12,11 +12,12 @@ This artifact accompanies the paper **"Formal Modeling and Verification of Vario
 ## Artifact Contents
 
 - `gpu_no_pipeline.pml` - Promela model for 3D rendering of a helipocter model.
-It includes `gpu_verticles.pml` - generated 3d-model verticles definition, `gpu_triangles.pml` - 3d-model triangles setup, `gpu_trigo.pml` - pre-calculated cine/cosine in fixed-point integers. 
-- `run_helicopter_demo.sh` - Main demonstration script
-- `Dockerfile` - Docker container definition
-- `license.txt` - License file
-- `README.md` - This file
+It includes `gpu_verticles.pml` - Generated 3d-model verticles definition, `gpu_triangles.pml` - 3d-model triangles setup, `gpu_trigo.pml` - Pre-calculated cine/cosine in fixed-point integers. 
+- `run_helicopter_demo.sh` - Main demonstration script.
+- `Dockerfile` - Docker container definition.
+- `license.txt` - License file.
+- `README.md` - This file.
+- `heli_orig.png` -  Original rendering result; `heli_spin.png` - SPIN rendering result.
 
 ## Quick Start (Docker)
 

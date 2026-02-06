@@ -1,5 +1,10 @@
 # SPIN 2026 Artifact: GPU Pipeline Formal Model
 
+
+<img src='heli_orig.png' height=200><img src='heli_spin.png' height=200>
+
+
+
 ## Overview
 
 This artifact accompanies the paper **"Formal Modeling and Verification of Various GPU Pipeline Architectures in SPIN"** submitted to SPIN 2026. The artifact demonstrates a formal model of a GPU graphics pipeline implemented in Promela, featuring an animated 3D helicopter rendered through console pseudographics.

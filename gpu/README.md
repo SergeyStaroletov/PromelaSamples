@@ -3,7 +3,7 @@
 
 <img src='heli_orig.png' height=200><img src='heli_spin.png' height=200>
 
-
+Terminal/ssh should have minimum 200x60 characters for proper visualization! 
 
 ## Overview
 

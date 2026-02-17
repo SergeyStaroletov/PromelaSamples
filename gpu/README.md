@@ -21,7 +21,7 @@ It includes `gpu_verticles.pml` - Generated 3d-model verticles definition, `gpu_
 
 ## Add-on: Pipeline demo (in progress)
 
-Pipeline modeled like this: 
+GPU pipeline modeled like this (supported various GPU configs for VERTEX_SHADERS, PIXEL_SHADERS, TMUS, ROPS but not tested): 
 
 <img src='gpu-pipe-graph.png' height=300>
 

@@ -697,7 +697,7 @@ proctype Rasterizer() {
                 if
                 :: triangle_ready[tid] == 1 ->
                     #ifdef DEBUG
-                    printf("Rast[frame %d]: Rasterizing triangle %d of %d\n", current_frame, tid, total_triangles+1);
+                    printf("Rast[frame %d]: Rasterizing triangle %d\n", current_frame, tid);
                     #endif
                     int cycles = 0;
                     do

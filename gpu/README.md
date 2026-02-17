@@ -19,6 +19,18 @@ It includes `gpu_verticles.pml` - Generated 3d-model verticles definition, `gpu_
 - `README.md` - This file.
 - `heli_orig.png` -  Original rendering result; `heli_spin.png` - SPIN rendering result.
 
+## Add-on: Pipeline demo (in progress)
+
+Pipeline modeled like this: 
+
+<img src='gpu-pipe-graph.png' height=300>
+
+- `gpu_pipeline_frame.pml` - Current Promela model of pipelined rendering (for now supports only one frame output).
+- <a href='sample.out'>See sample output, the interprocess communication and the helicopter pucture at the end:)</a>
+
+
+
+
 ## Quick Start (Docker)
 
 ```bash

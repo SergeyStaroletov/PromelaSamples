@@ -40,5 +40,3 @@ docker build -t spin2026-gpu-artifact .
 # Run the demo
 docker run -it --rm spin2026-gpu-artifact
 
-# Run the pipleline demo (add-on)
-spin -T -B gpu_pipeline_frame.pml

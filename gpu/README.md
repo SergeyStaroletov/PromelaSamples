@@ -25,7 +25,7 @@ Pipeline modeled like this:
 
 <img src='gpu-pipe-graph.png' height=300>
 
-- `gpu_pipeline_frame.pml` - Current Promela model of pipelined rendering (for now supports only one frame output).
+- `gpu_pipeline_frame.pml` - Current Promela model of pipelined rendering (for now supports only one frame output). I also had to generate the `gpu_adjacency.pml` file to go from vertex space to triangle space (a flat array of which triangles include which vertices).
 - <a href='sample.out'>See sample output, the interprocess communication and the helicopter pucture at the end:)</a>
 
 

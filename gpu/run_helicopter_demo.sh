@@ -29,3 +29,11 @@ sleep 1
 
 awk '/--- Frame/{system("sleep 0.1; clear")}/\|/{print;}' output/heli_animation.txt
 
+echo "Now let's try to see a pipilened rendering!"
+sleep 3
+echo "We run SPIN in simulation and see how the processes interact to transform verticles to triangles and then to pixels, in parallel..."
+sleep 6
+spin -T -B gpu_pipeline_frame.pml
+
+echo ""
+echo "For now, the demostration is done!"

@@ -19,6 +19,8 @@ COPY gpu_no_pipeline.pml /spin_artifact/
 COPY gpu_triangles.pml /spin_artifact/
 COPY gpu_trigo.pml /spin_artifact
 COPY gpu_verticles.pml /spin_artifact/
+COPY gpu_pipeline_frame.pml /spin_artifact/
+COPY gpu_adjacency.pml /spin_artifact/
 
 COPY run_helicopter_demo.sh /spin_artifact/
 RUN chmod +x /spin_artifact/run_helicopter_demo.sh

@@ -1,3 +1,3 @@
 # Interrupts modeling
 
-- will be commited here later
+See <a href=interrupts_intel.pml> interrupts (Intel) Promela model</a> for the demo 

@@ -1,8 +1,9 @@
-/* Integrated model of SMP system with interrupts (IOAPIC + Local APIC)
-   based on Linux interrupt handling Sergey's paper and inspired by Intel 82093AA and 8259A datasheets.
+/* (c) Sergey Staroletov
+   Integrated model of SMP system with interrupts (IOAPIC + Local APIC)
+   based on my Linux interrupt handling paper and inspired by Intel 82093AA and 8259A datasheets.
    Two CPUs run prime number calculations; devices generate interrupts non‑deterministically.
    Interrupts are processed with context save/restore, EOI, and resumption of the interrupted thread.
-   Key events are printed via printf.
+   Test:  spin interrupts_intel.pml | grep "Found prime" 
 */
 
 #define MAX_CPU         2
@@ -85,7 +86,7 @@ bit goodBye = 0;            /* it's time to exit */
 #define T           cpu[currentCPU].currentThread
 #define THREAD      thread[T]
 
-/* Instruction macros (identical to original) */
+/* Instruction macros (identical to original c-code of finding primes) */
 inline movl_rm(a, b)   { atomic { memory[(b)/4] = a; } }
 inline movl_rr(a, b)   { atomic { b = a; } }
 inline movl_mr(a, b)   { atomic { b = memory[(a)/4]; } }
@@ -136,12 +137,10 @@ inline load_context(currentCPU) {
     }
 }
 
-/* -------------------------------------------------------------------------
-   CPU execution unit
+/* CPU execution unit - finding primes!
    Executes one instruction per atomic step, but checks for interrupts first.
    If an interrupt is pending and enabled, it saves the current context,
-   processes the interrupt (prints, sends EOI), then restores the context.
-   ------------------------------------------------------------------------- */
+   processes the interrupt (prints, sends EOI), then restores the context. */
 proctype cpuProc(int currentCPU) {
     do
         :: atomic {
@@ -227,7 +226,6 @@ proctype cpuProc(int currentCPU) {
                     fi;
             fi;
 
-            /* Check if this CPU has finished (all its threads marked finished) */
             if
                 :: (FINISH) -> break;
                 :: else -> skip;
@@ -236,10 +234,8 @@ proctype cpuProc(int currentCPU) {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Scheduler – periodically switches threads on a CPU
-   (now includes the kworker thread)
-   ------------------------------------------------------------------------- */
+/* Scheduler – periodically switches threads on a CPU
+   (includes the kworker thread) */
 proctype scheduler(int currentCPU; int startThread) {
     do
         :: {
@@ -286,10 +282,8 @@ proctype scheduler(int currentCPU; int startThread) {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Kworker thread – handles fasteoi interrupts (bottom half)
-   Runs on each CPU and processes vectors from the queue.
-   ------------------------------------------------------------------------- */
+/* Kworker thread – handles fasteoi interrupts (bottom half)
+   Runs on each CPU and processes vectors from the queue. */
 proctype kworker(int my_cpu) {
     byte vec;
     do
@@ -299,10 +293,9 @@ proctype kworker(int my_cpu) {
                     kworker_queue[my_cpu] ? vec;
                     printf("Kworker on CPU %d: processing bottom half for vector %d\n", my_cpu, vec);
                     /* Simulate some work */
+                    // select?
                 :: else -> skip;
             fi;
-            /* Small delay to prevent busy waiting; scheduler will switch out */
-            /* Actually we just let the scheduler handle it – the loop will be re-entered */
         }
         ::goodBye -> break;
     od;
@@ -399,12 +392,10 @@ proctype irq_router() {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   IO‑APIC controller (domain io_apic)
+/* IO‑APIC controller (domain io_apic)
    Receives (dev, line, vector) from router.
    If trigger is fasteoi, it sends the interrupt to the kworker queue of the destination CPU.
-   Otherwise (edge) it forwards to Local APIC (via ioapic_to_lapic) for immediate handling.
-   ------------------------------------------------------------------------- */
+   Otherwise (edge) it forwards to Local APIC (via ioapic_to_lapic) for immediate handling. */
 proctype ioapic_controller() {
     mtype dev; byte line, vec;
     do
@@ -431,9 +422,7 @@ proctype ioapic_controller() {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Stub controllers for other domains – just print a message.
-   ------------------------------------------------------------------------- */
+/* Stub controllers for other domains. */
 proctype stub_controller(byte domain_id; int name) {
     mtype dev; byte line, vec;
     do
@@ -444,12 +433,10 @@ proctype stub_controller(byte domain_id; int name) {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Local APIC (one per CPU)
+/* Local APIC (one per CPU)
    Accepts messages from IOAPIC (or other controllers that use lapic),
    delivers to CPU if no active interrupt, otherwise drops (no queue).
-   Receives EOI from CPU and then can deliver the next pending (only one pending kept).
-   ------------------------------------------------------------------------- */
+   Receives EOI from CPU and then can deliver the next pending (only one pending kept). */
 proctype lapic(int my_cpu) {
     byte pending_vec = 0;
     byte active_vec = 0;
@@ -492,9 +479,7 @@ proctype lapic(int my_cpu) {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Device models – generate interrupts on a specific line (using device mtype)
-   ------------------------------------------------------------------------- */
+/*  Device models – generate interrupts on a specific line (using device mtype) */
 proctype device_proc(mtype dev; byte line) {
     do
         :: true ->
@@ -509,9 +494,7 @@ proctype device_proc(mtype dev; byte line) {
     od;
 }
 
-/* -------------------------------------------------------------------------
-   Main: initialisation and process startup
-   ------------------------------------------------------------------------- */
+/* Main: initialisation and process startup */
 active proctype main() {
     int i, cpu_id;
 
@@ -554,7 +537,7 @@ active proctype main() {
         run lapic(cpu_id);
         run scheduler(cpu_id, cpu_id*3);
         run cpuProc(cpu_id);
-        run kworker(cpu_id);   /* independent kworker process */
+        run kworker(cpu_id); // change it?
     }
 
     /* Start devices */

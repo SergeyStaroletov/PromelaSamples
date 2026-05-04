@@ -1,7 +1,13 @@
-# SPIN 2026 Artifact: GPU Pipeline Formal Model
+# Fixed GPU Pipeline Formal Model Artifact
 
 
 <img src='heli_orig.png' height=200><img src='heli_spin.png' height=200>
+
+New: Youtube talk (in Russian, + subs): 
+
+[![Formal Modeling  of Various GPU Pipeline Architectures in SPIN](https://markdown-videos-api.jorgenkh.no/url?url=https%3A%2F%2Fyoutu.be%2Fd-q_2ObowJ0)](https://youtu.be/d-q_2ObowJ0)
+
+
 
 Terminal/ssh should have minimum 200x60 characters for proper visualization! 
 
